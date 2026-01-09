@@ -3,7 +3,7 @@
  * Plugin Name: WP Rocket GPL con API Key
  * Plugin URI: https://wp-rocket.me
  * Description: The best WordPress performance plugin.
- * Version: 3.20.3
+ * Version: 3.20.2
  * Requires at least: 5.8
  * Requires PHP: 7.3
  * Code Name: Iego
@@ -20,7 +20,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // Rocket defines.
-define( 'WP_ROCKET_VERSION',               '3.20.3' );
+define( 'WP_ROCKET_VERSION',               '3.20.2' );
 define( 'WP_ROCKET_WP_VERSION',            '5.8' );
 define( 'WP_ROCKET_WP_VERSION_TESTED',     '6.3.1' );
 define( 'WP_ROCKET_PHP_VERSION',           '7.3' );
@@ -244,5 +244,6 @@ $wp_rocket_requirement_checks = new WP_Rocket_Requirements_Check(
 if ( $wp_rocket_requirement_checks->check() ) {
 	require WP_ROCKET_INC_PATH . 'main.php';
 }
+
 
 unset( $wp_rocket_requirement_checks );
