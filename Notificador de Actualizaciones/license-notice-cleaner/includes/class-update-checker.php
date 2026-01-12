@@ -1,0 +1,132 @@
+<?php
+/**
+ * Verificador de actualizaciones
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+class LNC_Update_Checker {
+
+    public static function init() {
+        // Verificación automática cada 12 horas
+        add_action( 'lnc_check_updates', array( __CLASS__, 'check_updates' ) );
+        
+        // Verificar al cargar admin (si han pasado 12 horas)
+        add_action( 'admin_init', array( __CLASS__, 'maybe_check_updates' ) );
+        
+        // Mostrar avisos de actualizaciones
+        add_action( 'admin_notices', array( __CLASS__, 'show_update_notices' ) );
+    }
+
+    /**
+     * Verificar si es momento de comprobar actualizaciones
+     */
+    public static function maybe_check_updates() {
+        $last_check = get_option( 'lnc_last_check', 0 );
+        $check_interval = 12 * HOUR_IN_SECONDS;
+        
+        if ( ( time() - $last_check ) > $check_interval ) {
+            self::check_updates();
+        }
+    }
+
+    /**
+     * Verificar actualizaciones disponibles
+     */
+    public static function check_updates() {
+        $installed_plugins = self::get_installed_plugins();
+        
+        if ( empty( $installed_plugins ) ) {
+            return;
+        }
+        
+        $response = wp_remote_post( LNC_API_URL, array(
+            'timeout' => 15,
+            'body' => array(
+                'action' => 'check_updates',
+                'api_key' => LNC_API_KEY,
+                'plugins' => json_encode( $installed_plugins )
+            )
+        ) );
+        
+        if ( is_wp_error( $response ) ) {
+            update_option( 'lnc_last_error', $response->get_error_message() );
+            return;
+        }
+        
+        $body = wp_remote_retrieve_body( $response );
+        $data = json_decode( $body, true );
+        
+        // Guardar respuesta completa para debug
+        update_option( 'lnc_last_response', array(
+            'time' => current_time( 'mysql' ),
+            'http_code' => wp_remote_retrieve_response_code( $response ),
+            'body' => $body,
+            'data' => $data
+        ) );
+        
+        if ( isset( $data['success'] ) && $data['success'] && isset( $data['updates'] ) ) {
+            update_option( 'lnc_available_updates', $data['updates'] );
+        } else {
+            update_option( 'lnc_available_updates', array() );
+        }
+        
+        update_option( 'lnc_last_check', time() );
+    }
+
+    /**
+     * Obtener lista de plugins instalados
+     */
+    private static function get_installed_plugins() {
+        if ( ! function_exists( 'get_plugins' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        
+        $all_plugins = get_plugins();
+        $installed = array();
+        
+        foreach ( $all_plugins as $plugin_file => $plugin_data ) {
+            $slug = dirname( $plugin_file );
+            if ( $slug === '.' ) {
+                $slug = basename( $plugin_file, '.php' );
+            }
+            
+            $installed[] = array(
+                'slug' => $slug,
+                'version' => $plugin_data['Version'],
+                'name' => $plugin_data['Name']
+            );
+        }
+        
+        return $installed;
+    }
+
+    /**
+     * Mostrar avisos de actualizaciones disponibles
+     */
+    public static function show_update_notices() {
+        $updates = get_option( 'lnc_available_updates', array() );
+        
+        if ( empty( $updates ) ) {
+            return;
+        }
+        
+        $count = count( $updates );
+        
+        echo '<div class="notice notice-warning is-dismissible">';
+        echo '<p><strong>🔔 Actualizaciones Disponibles (' . $count . ')</strong></p>';
+        echo '<ul style="list-style: disc; margin-left: 20px;">';
+        
+        foreach ( $updates as $update ) {
+            echo '<li>';
+            echo '<strong>' . esc_html( $update['name'] ) . '</strong> ';
+            echo 'v' . esc_html( $update['current_version'] ) . ' → ';
+            echo '<strong>v' . esc_html( $update['new_version'] ) . '</strong> ';
+            echo '<a href="' . esc_url( $update['download_url'] ) . '" target="_blank">Ver detalles</a>';
+            echo '</li>';
+        }
+        
+        echo '</ul>';
+        echo '</div>';
+    }
+}
