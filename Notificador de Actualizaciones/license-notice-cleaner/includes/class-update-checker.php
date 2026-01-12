@@ -282,7 +282,8 @@ class LNC_Update_Checker {
      */
     public static function dismiss_update_notice() {
         // Verificar nonce
-        if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'lnc_dismiss_nonce' ) ) {
+        $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( $_POST['nonce'] ) : '';
+        if ( ! wp_verify_nonce( $nonce, 'lnc_dismiss_nonce' ) ) {
             wp_send_json_error( array( 'message' => 'Nonce inválido' ) );
             return;
         }
@@ -312,7 +313,8 @@ class LNC_Update_Checker {
      */
     public static function dismiss_all_notices() {
         // Verificar nonce
-        if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'lnc_dismiss_nonce' ) ) {
+        $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( $_POST['nonce'] ) : '';
+        if ( ! wp_verify_nonce( $nonce, 'lnc_dismiss_nonce' ) ) {
             wp_send_json_error( array( 'message' => 'Nonce inválido' ) );
             return;
         }
