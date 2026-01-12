@@ -29,6 +29,12 @@ class LNC_Update_Checker {
      * Cargar scripts para AJAX
      */
     public static function enqueue_scripts() {
+        // Pasar datos a JavaScript de forma segura
+        wp_localize_script( 'jquery', 'lncAjax', array(
+            'ajaxurl' => admin_url( 'admin-ajax.php' ),
+            'nonce'   => wp_create_nonce( 'lnc_dismiss_nonce' )
+        ) );
+        
         ?>
         <script type="text/javascript">
         jQuery(document).ready(function($) {
@@ -38,10 +44,10 @@ class LNC_Update_Checker {
                 var slug = $(this).data('slug');
                 var $notice = $(this).closest('.lnc-update-notice');
                 
-                $.post(ajaxurl, {
+                $.post(lncAjax.ajaxurl, {
                     action: 'lnc_dismiss_update',
                     slug: slug,
-                    nonce: '<?php echo wp_create_nonce( 'lnc_dismiss_nonce' ); ?>'
+                    nonce: lncAjax.nonce
                 }, function(response) {
                     if (response.success) {
                         $notice.fadeOut(300, function() {
@@ -59,9 +65,9 @@ class LNC_Update_Checker {
             $(document).on('click', '.lnc-dismiss-all', function(e) {
                 e.preventDefault();
                 
-                $.post(ajaxurl, {
+                $.post(lncAjax.ajaxurl, {
                     action: 'lnc_dismiss_all_updates',
-                    nonce: '<?php echo wp_create_nonce( 'lnc_dismiss_nonce' ); ?>'
+                    nonce: lncAjax.nonce
                 }, function(response) {
                     if (response.success) {
                         $('.lnc-update-notice').fadeOut(300, function() {
@@ -311,8 +317,19 @@ class LNC_Update_Checker {
             return;
         }
         
-        // Limpiar completamente los avisos disponibles
-        update_option( 'lnc_available_updates', array() );
+        // Obtener todas las actualizaciones actuales
+        $updates = get_option( 'lnc_available_updates', array() );
+        $dismissed = get_option( 'lnc_dismissed_updates', array() );
+        
+        // Marcar todas las actualizaciones como descartadas
+        foreach ( $updates as $update ) {
+            if ( isset( $update['slug'] ) ) {
+                $dismissed[ $update['slug'] ] = time();
+            }
+        }
+        
+        // Guardar avisos descartados
+        update_option( 'lnc_dismissed_updates', $dismissed );
         
         wp_send_json_success( array( 'message' => 'Todos los avisos descartados' ) );
     }
