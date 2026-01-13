@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Notificacion Plugins Actualizables
  * Description: Sistema de gestión de actualizaciones y limpieza de avisos de licencias
- * Version: 2.5.0
+ * Version: 2.5.1
  * Author: Navas
  * Requires PHP: 7.2
  * Requires at least: 5.0
@@ -11,7 +11,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Constantes
-define( 'LNC_VERSION', '2.5.0' );
+define( 'LNC_VERSION', '2.5.1' );
 define( 'LNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LNC_API_URL', 'https://plugins-wp.online/check-updates.php' );
 define( 'LNC_API_KEY', 'GPL-2024-PREMIUM-ACCESS' );
