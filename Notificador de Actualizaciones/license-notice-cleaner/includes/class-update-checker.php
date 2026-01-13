@@ -121,8 +121,18 @@ class LNC_Update_Checker {
         $updates_to_show = array();
         
         foreach ( $updates as $update ) {
+            // Validate required fields
+            if ( ! isset( $update['slug'] ) || ! isset( $update['new_version'] ) ) {
+                continue;
+            }
+            
             $plugin_slug = $update['slug'];
             $new_version = $update['new_version'];
+            
+            // Skip if new_version is empty
+            if ( empty( $new_version ) ) {
+                continue;
+            }
             
             // Buscar versión instalada del plugin
             $installed_version = null;
@@ -156,11 +166,16 @@ class LNC_Update_Checker {
         echo '<ul style="list-style: disc; margin-left: 20px;">';
         
         foreach ( $updates_to_show as $update ) {
+            $name = isset( $update['name'] ) ? $update['name'] : '';
+            $current_version = isset( $update['current_version'] ) ? $update['current_version'] : '';
+            $new_version = isset( $update['new_version'] ) ? $update['new_version'] : '';
+            $download_url = isset( $update['download_url'] ) ? $update['download_url'] : '#';
+            
             echo '<li>';
-            echo '<strong>' . esc_html( $update['name'] ) . '</strong> ';
-            echo 'v' . esc_html( $update['current_version'] ) . ' → ';
-            echo '<strong>v' . esc_html( $update['new_version'] ) . '</strong> ';
-            echo '<a href="' . esc_url( $update['download_url'] ) . '" target="_blank">Ver detalles</a>';
+            echo '<strong>' . esc_html( $name ) . '</strong> ';
+            echo 'v' . esc_html( $current_version ) . ' → ';
+            echo '<strong>v' . esc_html( $new_version ) . '</strong> ';
+            echo '<a href="' . esc_url( $download_url ) . '" target="_blank">Ver detalles</a>';
             echo '</li>';
         }
         
