@@ -208,72 +208,60 @@ class LNC_Update_Checker {
             return;
         }
         
-        // Obtener plugins instalados actualmente
-        $installed_plugins = self::get_installed_plugins();
-        $installed_versions = array();
-        
-        foreach ( $installed_plugins as $plugin ) {
-            $installed_versions[ $plugin['slug'] ] = $plugin['version'];
+        // Obtener plugins instalados para comparar versiones
+        if ( ! function_exists( 'get_plugins' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
+        $installed_plugins = get_plugins();
         
-        // Obtener avisos descartados
-        $dismissed = get_option( 'lnc_dismissed_updates', array() );
+        // Filtrar actualizaciones: solo mostrar si versión instalada < versión disponible
+        $updates_to_show = array();
         
-        // Filtrar actualizaciones
-        $filtered_updates = array();
         foreach ( $updates as $update ) {
-            $slug = isset( $update['slug'] ) ? $update['slug'] : '';
+            $plugin_slug = $update['slug'];
+            $new_version = $update['new_version'];
             
-            // Saltar si está descartado
-            if ( isset( $dismissed[ $slug ] ) ) {
-                continue;
-            }
-            
-            // Saltar si ya está actualizado (comparar versiones)
-            if ( isset( $installed_versions[ $slug ] ) ) {
-                $installed_version = $installed_versions[ $slug ];
-                $new_version = isset( $update['new_version'] ) ? $update['new_version'] : '';
+            // Buscar versión instalada del plugin
+            $installed_version = null;
+            foreach ( $installed_plugins as $plugin_file => $plugin_data ) {
+                $current_slug = dirname( $plugin_file );
+                if ( $current_slug === '.' ) {
+                    $current_slug = basename( $plugin_file, '.php' );
+                }
                 
-                // Si la versión instalada es mayor o igual, no mostrar
-                if ( version_compare( $installed_version, $new_version, '>=' ) ) {
-                    continue;
+                if ( $current_slug === $plugin_slug ) {
+                    $installed_version = $plugin_data['Version'];
+                    break;
                 }
             }
             
-            $filtered_updates[] = $update;
+            // Solo mostrar si: plugin instalado Y versión instalada < versión nueva
+            if ( $installed_version && version_compare( $installed_version, $new_version, '<' ) ) {
+                $updates_to_show[] = $update;
+            }
         }
         
-        if ( empty( $filtered_updates ) ) {
+        // Si no hay actualizaciones relevantes, no mostrar nada
+        if ( empty( $updates_to_show ) ) {
             return;
         }
         
-        $count = count( $filtered_updates );
+        $count = count( $updates_to_show );
         
-        echo '<div class="notice notice-warning lnc-update-notice">';
+        echo '<div class="notice notice-warning is-dismissible">';
         echo '<p><strong>🔔 Actualizaciones Disponibles (' . $count . ')</strong></p>';
         echo '<ul style="list-style: disc; margin-left: 20px;">';
         
-        foreach ( $filtered_updates as $update ) {
-            $slug = isset( $update['slug'] ) ? $update['slug'] : '';
-            $name = isset( $update['name'] ) ? $update['name'] : '';
-            $current_version = isset( $update['current_version'] ) ? $update['current_version'] : '';
-            $new_version = isset( $update['new_version'] ) ? $update['new_version'] : '';
-            $download_url = isset( $update['download_url'] ) ? $update['download_url'] : '';
-            
-            echo '<li class="lnc-update-item">';
-            echo '<strong>' . esc_html( $name ) . '</strong> ';
-            echo 'v' . esc_html( $current_version ) . ' → ';
-            echo '<strong>v' . esc_html( $new_version ) . '</strong> ';
-            echo '<a href="' . esc_url( $download_url ) . '" target="_blank">Ver detalles</a>';
-            echo ' | ';
-            echo '<a href="#" class="lnc-dismiss-update" data-slug="' . esc_attr( $slug ) . '">Descartar</a>';
+        foreach ( $updates_to_show as $update ) {
+            echo '<li>';
+            echo '<strong>' . esc_html( $update['name'] ) . '</strong> ';
+            echo 'v' . esc_html( $update['current_version'] ) . ' → ';
+            echo '<strong>v' . esc_html( $update['new_version'] ) . '</strong> ';
+            echo '<a href="' . esc_url( $update['download_url'] ) . '" target="_blank">Ver detalles</a>';
             echo '</li>';
         }
         
         echo '</ul>';
-        echo '<div class="lnc-dismiss-buttons">';
-        echo '<a href="#" class="lnc-dismiss-all">Descartar todos</a>';
-        echo '</div>';
         echo '</div>';
     }
 
