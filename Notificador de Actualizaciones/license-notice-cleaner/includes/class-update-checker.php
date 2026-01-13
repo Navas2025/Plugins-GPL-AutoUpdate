@@ -169,13 +169,17 @@ class LNC_Update_Checker {
             $name = isset( $update['name'] ) ? $update['name'] : '';
             $current_version = isset( $update['current_version'] ) ? $update['current_version'] : '';
             $new_version = isset( $update['new_version'] ) ? $update['new_version'] : '';
-            $download_url = isset( $update['download_url'] ) ? $update['download_url'] : '#';
+            $download_url = isset( $update['download_url'] ) ? $update['download_url'] : '';
             
             echo '<li>';
             echo '<strong>' . esc_html( $name ) . '</strong> ';
             echo 'v' . esc_html( $current_version ) . ' → ';
             echo '<strong>v' . esc_html( $new_version ) . '</strong> ';
-            echo '<a href="' . esc_url( $download_url ) . '" target="_blank">Ver detalles</a>';
+            
+            if ( ! empty( $download_url ) ) {
+                echo '<a href="' . esc_url( $download_url ) . '" target="_blank">Ver detalles</a>';
+            }
+            
             echo '</li>';
         }
         
