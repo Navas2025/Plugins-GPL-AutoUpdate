@@ -13,7 +13,8 @@ class LNC_Notice_Cleaner {
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );
         
         // Remover acciones de avisos conocidos
-        add_action( 'admin_init', array( __CLASS__, 'remove_license_notices' ), 999 );
+        // DESACTIVADO: Causa problemas al desactivar el plugin
+        // add_action( 'admin_init', array( __CLASS__, 'remove_license_notices' ), 999 );
         
         // Filtrar salida HTML para remover avisos
         add_action( 'admin_notices', array( __CLASS__, 'start_buffer' ), 0 );
@@ -108,7 +109,10 @@ class LNC_Notice_Cleaner {
 
     /**
      * Remover acciones de avisos conocidos
+     * DESACTIVADO: Este método manipula $wp_filter globalmente y causa
+     * problemas al desactivar el plugin desde WordPress
      */
+    /*
     public static function remove_license_notices() {
         // Remover todos los hooks de admin_notices con prioridad baja
         global $wp_filter;
@@ -127,6 +131,7 @@ class LNC_Notice_Cleaner {
             }
         }
     }
+    */
 
     /**
      * Iniciar buffer de salida
