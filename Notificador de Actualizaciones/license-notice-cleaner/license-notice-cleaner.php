@@ -3,7 +3,7 @@
  * Plugin Name:       Notificacion Plugins Actualizables
  * Plugin URI:        https://plugins-wp.online
  * Description:       Sistema de notificación de actualizaciones disponibles para plugins
- * Version:           2.5.2
+ * Version:           2.5.3
  * Author:            Navas
  * Author URI:        https://plugins-wp.online
  * License:           GPL-2.0+
@@ -16,7 +16,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Constantes
-define( 'LNC_VERSION', '2.5.2' );
+define( 'LNC_VERSION', '2.5.3' );
 define( 'LNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LNC_API_URL', 'https://plugins-wp.online/check-updates.php' );
 define( 'LNC_API_KEY', 'GPL-2024-PREMIUM-ACCESS' );
