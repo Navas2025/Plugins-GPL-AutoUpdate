@@ -134,6 +134,12 @@ class LNC_Update_Checker {
             return;
         }
         
+        // Pasar datos de forma segura a JavaScript
+        wp_localize_script( 'jquery', 'lncSnooze', array(
+            'ajaxurl' => admin_url( 'admin-ajax.php' ),
+            'nonce'   => wp_create_nonce( 'lnc_snooze_nonce' )
+        ) );
+        
         // JavaScript inline
         $js = "
     jQuery(document).ready(function($) {
@@ -145,11 +151,11 @@ class LNC_Update_Checker {
             button.prop('disabled', true).text('Ocultando...');
             
             $.ajax({
-                url: ajaxurl,
+                url: lncSnooze.ajaxurl,
                 type: 'POST',
                 data: {
                     action: 'lnc_snooze_notices',
-                    nonce: '" . wp_create_nonce( 'lnc_snooze_nonce' ) . "'
+                    nonce: lncSnooze.nonce
                 },
                 success: function(response) {
                     if (response.success) {
