@@ -23,6 +23,12 @@ class LNC_Update_Checker {
         
         // Cargar scripts para AJAX
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );
+        
+        // NUEVO: Cargar scripts para botón "Ocultar por 12 horas"
+        add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_snooze_scripts' ) );
+        
+        // NUEVO: AJAX para ocultar avisos
+        add_action( 'wp_ajax_lnc_snooze_notices', array( __CLASS__, 'ajax_snooze_notices' ) );
     }
 
     /**
@@ -113,6 +119,124 @@ class LNC_Update_Checker {
     }
 
     /**
+     * Cargar JavaScript para el botón "Ocultar por 12 horas"
+     */
+    public static function enqueue_snooze_scripts() {
+        // Solo cargar si hay actualizaciones
+        $updates = get_option( 'lnc_available_updates', array() );
+        if ( empty( $updates ) ) {
+            return;
+        }
+        
+        // Verificar si están ocultas temporalmente
+        $snoozed_until = get_option( 'lnc_snoozed_until', 0 );
+        if ( time() < $snoozed_until ) {
+            return;
+        }
+        
+        // Pasar datos de forma segura a JavaScript
+        wp_localize_script( 'jquery', 'lncSnooze', array(
+            'ajaxurl' => admin_url( 'admin-ajax.php' ),
+            'nonce'   => wp_create_nonce( 'lnc_snooze_nonce' )
+        ) );
+        
+        // JavaScript inline
+        $js = "
+    jQuery(document).ready(function($) {
+        // Manejar click en botón 'Ocultar por 12 horas'
+        $(document).on('click', '.lnc-snooze-button', function(e) {
+            e.preventDefault();
+            
+            var button = $(this);
+            button.prop('disabled', true).text('Ocultando...');
+            
+            $.ajax({
+                url: lncSnooze.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'lnc_snooze_notices',
+                    nonce: lncSnooze.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Ocultar el aviso con animación
+                        button.closest('.notice').fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                        
+                        // Mostrar mensaje de confirmación temporal
+                        $('<div class=\"notice notice-success is-dismissible\" style=\"display:none;\"><p><strong>✅ Avisos ocultos por 12 horas.</strong> Volverán a aparecer automáticamente.</p></div>')
+                            .insertAfter('.wp-header-end')
+                            .fadeIn(300)
+                            .delay(3000)
+                            .fadeOut(300, function() { $(this).remove(); });
+                    }
+                },
+                error: function() {
+                    button.prop('disabled', false).text('⏰ Ocultar por 12 horas');
+                    alert('Error al ocultar avisos. Inténtalo de nuevo.');
+                }
+            });
+        });
+    });
+    ";
+        
+        wp_add_inline_script( 'jquery', $js );
+        
+        // CSS inline para el botón
+        $css = "
+    .lnc-snooze-button {
+        float: right;
+        margin-left: 10px;
+        padding: 3px 10px;
+        background: #f0f0f1;
+        border: 1px solid #c3c4c7;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #2c3338;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .lnc-snooze-button:hover {
+        background: #fff;
+        border-color: #8c8f94;
+        color: #1d2327;
+    }
+    .lnc-snooze-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    ";
+        
+        wp_add_inline_style( 'common', $css );
+    }
+
+    /**
+     * AJAX: Ocultar avisos por 12 horas
+     */
+    public static function ajax_snooze_notices() {
+        // Verificar nonce
+        if ( ! check_ajax_referer( 'lnc_snooze_nonce', 'nonce', false ) ) {
+            wp_send_json_error( array( 'message' => 'Nonce inválido' ) );
+        }
+        
+        // Verificar permisos
+        if ( ! current_user_can( 'update_plugins' ) ) {
+            wp_send_json_error( array( 'message' => 'Sin permisos' ) );
+        }
+        
+        // Guardar timestamp de cuándo vuelven a aparecer (12 horas = 43200 segundos)
+        $snooze_until = time() + ( 12 * HOUR_IN_SECONDS );
+        update_option( 'lnc_snoozed_until', $snooze_until );
+        
+        wp_send_json_success( array( 
+            'message' => 'Avisos ocultos por 12 horas',
+            'until' => date( 'Y-m-d H:i:s', $snooze_until )
+        ) );
+    }
+
+    /**
      * Verificar si es momento de comprobar actualizaciones
      */
     public static function maybe_check_updates() {
@@ -164,6 +288,9 @@ class LNC_Update_Checker {
         
         if ( isset( $data['success'] ) && $data['success'] && isset( $data['updates'] ) ) {
             update_option( 'lnc_available_updates', $data['updates'] );
+            
+            // NUEVO: Si hay nuevas actualizaciones, resetear el snooze
+            delete_option( 'lnc_snoozed_until' );
         } else {
             update_option( 'lnc_available_updates', array() );
         }
@@ -202,6 +329,12 @@ class LNC_Update_Checker {
      * Mostrar avisos de actualizaciones disponibles
      */
     public static function show_update_notices() {
+        // NUEVO: Verificar si están ocultas temporalmente
+        $snoozed_until = get_option( 'lnc_snoozed_until', 0 );
+        if ( time() < $snoozed_until ) {
+            return; // No mostrar avisos hasta que pasen las 12 horas
+        }
+        
         $updates = get_option( 'lnc_available_updates', array() );
         
         if ( empty( $updates ) ) {
@@ -250,7 +383,9 @@ class LNC_Update_Checker {
         $count = count( $filtered_updates );
         
         echo '<div class="notice notice-warning lnc-update-notice">';
-        echo '<p><strong>🔔 Actualizaciones Disponibles (' . $count . ')</strong></p>';
+        echo '<p><strong>🔔 Actualizaciones Disponibles (' . $count . ')</strong>';
+        echo '<button type="button" class="lnc-snooze-button">⏰ Ocultar por 12 horas</button>';
+        echo '</p>';
         echo '<ul style="list-style: disc; margin-left: 20px;">';
         
         foreach ( $filtered_updates as $update ) {
