@@ -34,11 +34,11 @@ function npa_get_api_url() {
  */
 function npa_get_api_key() {
     // API Key ofuscada: GPL-2024-PREMIUM-ACCESS
-    // Paso 1: base64 encode
-    $encoded = 'VkNDLTIwMjQtQ0VSVFZVTS1BUFBSRkZG';
-    // Paso 2: decode
+    // Paso 1: rot13
+    // Paso 2: base64 encode
+    $encoded = 'VENZLTIwMjQtQ0VSWlZIWi1OUFBSRkY=';
+    // Paso 3: decode y reverse rot13
     $decoded = base64_decode( $encoded );
-    // Paso 3: rot13 para ofuscar más
     return str_rot13( $decoded );
 }
 

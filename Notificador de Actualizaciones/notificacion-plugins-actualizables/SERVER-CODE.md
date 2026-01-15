@@ -15,7 +15,7 @@ header('Content-Type: application/json');
 
 // API Key (misma que en el cliente, ofuscada igual)
 function get_api_key() {
-    $encoded = 'VkNDLTIwMjQtQ0VSVFZVTS1BUFBSRkZG';
+    $encoded = 'VENZLTIwMjQtQ0VSWlZIWi1OUFBSRkY=';
     $decoded = base64_decode($encoded);
     return str_rot13($decoded);
 }
