@@ -76,7 +76,7 @@ class NPA_Update_Checker {
         
         // Encriptar datos
         $encryption_key = npa_get_encryption_key();
-        $iv = openssl_random_pseudo_bytes( 16 );
+        $iv = random_bytes( 16 );
         
         $encrypted_data = openssl_encrypt(
             $data_json,
@@ -297,9 +297,15 @@ class NPA_Update_Checker {
         
         foreach ( $updates_to_show as $update ) {
             echo '<li>';
-            echo '<strong>' . esc_html( $update['name'] ) . '</strong> ';
-            echo 'v' . esc_html( $update['current_version'] ) . ' → ';
-            echo '<strong>v' . esc_html( $update['new_version'] ) . '</strong>';
+            echo '<strong>' . esc_html( isset( $update['name'] ) ? $update['name'] : '' ) . '</strong> ';
+            
+            if ( isset( $update['current_version'] ) ) {
+                echo 'v' . esc_html( $update['current_version'] ) . ' → ';
+            }
+            
+            if ( isset( $update['new_version'] ) ) {
+                echo '<strong>v' . esc_html( $update['new_version'] ) . '</strong>';
+            }
             
             if ( ! empty( $update['download_url'] ) ) {
                 echo ' <a href="' . esc_url( $update['download_url'] ) . '" target="_blank">Ver detalles</a>';
