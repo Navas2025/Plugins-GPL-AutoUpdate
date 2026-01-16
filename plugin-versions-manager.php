@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Versions Manager (con identifiers para matching)
- * Version: 2.0.7
+ * Version: 2.0.8
  * Author: Navas (adaptado)
  *
  * Genera plugin-versions-cache.json en uploads con, entre otros campos:
@@ -265,7 +265,7 @@ class Plugin_Versions_Manager {
             </div>
         </div>
 
-        <script>
+        <script data-no-minify="1" data-no-defer="1">
         // ========== MODAL DE EDICIÓN ==========
         function editSlug(productId, productName, currentSlug) {
             document.getElementById('edit-product-id').value = productId;
@@ -276,13 +276,6 @@ class Plugin_Versions_Manager {
 
         function closeModal() { 
             document.getElementById('edit-slug-modal').style.display = 'none'; 
-        }
-
-        function changePerPage(value) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('per_page', value);
-            url.searchParams.delete('paged'); // Reset a página 1
-            window.location.href = url.toString();
         }
 
         // ========== GUARDAR SLUG CON AJAX (SIN RECARGAR) ==========
@@ -298,9 +291,23 @@ class Plugin_Versions_Manager {
                     const submitBtn = form.querySelector('button[type="submit"]');
                     const originalText = submitBtn.textContent;
                     
+                    console.log('=== DEBUG: Guardando slug ===');
+                    console.log('Product ID:', productId);
+                    console.log('Manual Slug:', manualSlug);
+                    console.log('AJAX URL:', '<?php echo admin_url( 'admin-ajax.php' ); ?>');
+                    
                     // Deshabilitar botón
                     submitBtn.disabled = true;
                     submitBtn.textContent = 'Guardando...';
+                    
+                    // Timeout de seguridad: cerrar modal después de 10 segundos
+                    const timeoutId = setTimeout(function() {
+                        console.warn('⏱️ Timeout: Cerrando modal después de 10 segundos');
+                        closeModal();
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                        showNotice('info', 'ℹ️ Timeout alcanzado. Verifique si el slug se guardó correctamente en la tabla.');
+                    }, 10000);
                     
                     // Enviar por AJAX
                     const formData = new FormData();
@@ -314,9 +321,18 @@ class Plugin_Versions_Manager {
                         credentials: 'same-origin',
                         body: formData
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('Respuesta HTTP status:', response.status);
+                        return response.json();
+                    })
                     .then(data => {
-                        if (data.success) {
+                        console.log('Respuesta del servidor:', data);
+                        clearTimeout(timeoutId);
+                        
+                        // Detección más robusta de éxito
+                        if (data && (data.success === true || (data.data && data.data.manual_slug))) {
+                            console.log('✅ Slug guardado exitosamente');
+                            
                             // Actualizar la fila en la tabla SIN recargar
                             const row = document.querySelector(`tr[data-product-id="${productId}"]`);
                             if (row) {
@@ -333,20 +349,39 @@ class Plugin_Versions_Manager {
                             // Mostrar notificación de éxito
                             showNotice('success', '✅ Slug guardado: <code>' + manualSlug + '</code>');
                             
-                            // Cerrar modal
-                            closeModal();
+                            // CRÍTICO: Cerrar modal automáticamente después de 1 segundo
+                            setTimeout(function() {
+                                closeModal();
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = originalText;
+                            }, 1000);
+                            
                         } else {
-                            showNotice('error', '❌ Error: ' + (data.data?.message || 'Error desconocido'));
+                            console.error('❌ Respuesta inesperada del servidor:', data);
+                            clearTimeout(timeoutId);
+                            
+                            showNotice('warning', '⚠️ Respuesta inesperada del servidor. Verifique la tabla.');
+                            
+                            // Cerrar modal de todas formas después de 2 segundos
+                            setTimeout(function() {
+                                closeModal();
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = originalText;
+                            }, 2000);
                         }
-                        
-                        // Rehabilitar botón
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
                     })
                     .catch(error => {
-                        showNotice('error', '❌ Error de conexión: ' + error);
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
+                        console.error('❌ Error en fetch AJAX:', error);
+                        clearTimeout(timeoutId);
+                        
+                        showNotice('error', '❌ Error de conexión: ' + error.message);
+                        
+                        // Cerrar modal después de 2 segundos incluso con error
+                        setTimeout(function() {
+                            closeModal();
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalText;
+                        }, 2000);
                     });
                 });
             }
@@ -354,7 +389,7 @@ class Plugin_Versions_Manager {
 
         // Función para mostrar notificaciones
         function showNotice(type, message) {
-            const noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
+            const noticeClass = type === 'success' ? 'notice-success' : (type === 'error' ? 'notice-error' : (type === 'warning' ? 'notice-warning' : 'notice-info'));
             const notice = document.createElement('div');
             notice.className = `notice ${noticeClass} is-dismissible`;
             notice.innerHTML = `<p>${message}</p>`;
@@ -364,16 +399,43 @@ class Plugin_Versions_Manager {
             if (wrap) {
                 wrap.insertBefore(notice, wrap.firstChild);
                 
-                // Auto-ocultar después de 3 segundos
+                // Auto-ocultar después de 5 segundos
                 setTimeout(() => {
                     notice.style.opacity = '0';
                     notice.style.transition = 'opacity 0.5s';
                     setTimeout(() => notice.remove(), 500);
-                }, 3000);
+                }, 5000);
             }
         }
 
-        // ========== REGENERAR CACHÉ POR LOTES (código existente) ==========
+        // Permitir cambio de página con Enter en el input
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageInput = document.getElementById('current-page-selector');
+            if (pageInput) {
+                pageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const page = parseInt(this.value);
+                        const totalPages = parseInt(document.querySelector('.total-pages').textContent);
+                        if (page >= 1 && page <= totalPages) {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('paged', page);
+                            window.location.href = url.toString();
+                        }
+                    }
+                });
+            }
+        });
+
+        // ========== CAMBIAR RESULTADOS POR PÁGINA ==========
+        function changePerPage(value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', value);
+            url.searchParams.delete('paged'); // Reset a página 1
+            window.location.href = url.toString();
+        }
+
+        // ========== REGENERAR CACHÉ POR LOTES ==========
         (function(){
             const batchSize = 20;
             const minDelay = 1200;
@@ -382,13 +444,16 @@ class Plugin_Versions_Manager {
             const nonce = '<?php echo esc_js( $ajax_nonce ); ?>';
             let running = false;
             
-            document.getElementById('pvm-regenerate-button').addEventListener('click', function(){
-                if ( running ) return;
-                if ( ! confirm('Iniciar regeneración por lotes?') ) return;
-                running = true;
-                this.disabled = true;
-                runBatch(0);
-            });
+            const regenButton = document.getElementById('pvm-regenerate-button');
+            if (regenButton) {
+                regenButton.addEventListener('click', function(){
+                    if ( running ) return;
+                    if ( ! confirm('Iniciar regeneración por lotes?') ) return;
+                    running = true;
+                    this.disabled = true;
+                    runBatch(0);
+                });
+            }
 
             function runBatch(offset) {
                 document.getElementById('pvm-regenerate-status').textContent = 'Procesando offset ' + offset;
@@ -416,6 +481,7 @@ class Plugin_Versions_Manager {
                     const delay = Math.floor(Math.random()*(maxDelay-minDelay))+minDelay;
                     setTimeout(function(){ runBatch(d.next_offset); }, delay);
                 }).catch(err=>{
+                    console.error('Error en regeneración:', err);
                     document.getElementById('pvm-regenerate-status').textContent = 'Error en petición: ' + err;
                     running = false;
                     document.getElementById('pvm-regenerate-button').disabled = false;
