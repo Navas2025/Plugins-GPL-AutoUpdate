@@ -211,11 +211,6 @@ class NPA_Update_Checker {
      * Cargar scripts y estilos en admin
      */
     public static function enqueue_scripts( $hook ) {
-        // Solo en páginas de admin
-        if ( ! is_admin() ) {
-            return;
-        }
-        
         // CSS inline para el aviso
         wp_add_inline_style( 'wp-admin', '
             .npa-update-notice {
@@ -241,38 +236,41 @@ class NPA_Update_Checker {
         
         // JavaScript inline para el botón
         wp_add_inline_script( 'wp-util', "
-            jQuery(document).ready(function($) {
-                $('#npa-hide-12h').on('click', function(e) {
-                    e.preventDefault();
-                    var btn = $(this);
-                    var nonce = btn.data('nonce');
-                    
-                    btn.prop('disabled', true).text('Ocultando...');
-                    
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'npa_hide_notice_12h',
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                $('#npa-update-notice').fadeOut(300, function() {
-                                    $(this).remove();
-                                });
-                            } else {
-                                alert('Error: ' + (response.data?.message || 'Error desconocido'));
+            (function($) {
+                $(document).ready(function() {
+                    $('#npa-hide-12h').on('click', function(e) {
+                        e.preventDefault();
+                        var btn = $(this);
+                        var nonce = btn.data('nonce');
+                        
+                        btn.prop('disabled', true).text('Ocultando...');
+                        
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'npa_hide_notice_12h',
+                                nonce: nonce
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    $('#npa-update-notice').fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                } else {
+                                    var errorMsg = response.data && response.data.message ? response.data.message : 'Error desconocido';
+                                    alert('Error: ' + errorMsg);
+                                    btn.prop('disabled', false).text('⏰ Ocultar por 12 horas');
+                                }
+                            },
+                            error: function() {
+                                alert('Error de conexión');
                                 btn.prop('disabled', false).text('⏰ Ocultar por 12 horas');
                             }
-                        },
-                        error: function() {
-                            alert('Error de conexión');
-                            btn.prop('disabled', false).text('⏰ Ocultar por 12 horas');
-                        }
+                        });
                     });
                 });
-            });
+            })(jQuery);
         " );
     }
 }
