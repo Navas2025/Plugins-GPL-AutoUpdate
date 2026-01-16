@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Versions Manager (con identifiers para matching)
- * Version: 2.0.6-mod
+ * Version: 2.0.7
  * Author: Navas (adaptado)
  *
  * Genera plugin-versions-cache.json en uploads con, entre otros campos:
@@ -21,6 +21,10 @@ class Plugin_Versions_Manager {
     private $table_name;
     private $build_transient_key = 'pvm_build_cache';
     private $running_transient_key = 'pvm_rebuild_running';
+    
+    // Pagination constants
+    private const MAX_PER_PAGE_THRESHOLD = 1000;
+    private const ALL_RESULTS_VALUE = 999;
 
     public function __construct() {
         global $wpdb;
@@ -30,6 +34,7 @@ class Plugin_Versions_Manager {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 
         add_action( 'wp_ajax_pvm_regenerate_cache_batch', array( $this, 'ajax_regenerate_cache_batch' ) );
+        add_action( 'wp_ajax_pvm_save_manual_slug', array( $this, 'ajax_save_manual_slug' ) );
 
         register_activation_hook( __FILE__, array( $this, 'create_table' ) );
     }
@@ -69,9 +74,16 @@ class Plugin_Versions_Manager {
     }
 
     public function render_admin_page() {
-        // Obtener término de búsqueda antes de procesar POST (mantiene estado del formulario)
+        // Obtener término de búsqueda
         $search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-
+        
+        // Obtener parámetros de paginación
+        $per_page = isset( $_GET['per_page'] ) ? intval( $_GET['per_page'] ) : 20;
+        if ( $per_page <= 0 ) $per_page = 20;
+        if ( $per_page > self::MAX_PER_PAGE_THRESHOLD ) $per_page = -1; // "Todos"
+        
+        $current_page = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
+        
         if ( isset( $_POST['pvm_action'] ) && check_admin_referer( 'pvm_action_nonce' ) ) {
             $action = sanitize_text_field( wp_unslash( $_POST['pvm_action'] ) );
 
@@ -103,31 +115,106 @@ class Plugin_Versions_Manager {
                     break;
             }
         }
-
-        $products = $this->get_products_with_slugs( $search );
-
+        
+        // Obtener total de productos (para paginación)
+        $total_products = $this->get_total_products_count_with_search( $search );
+        
+        // Calcular offset
+        $offset = ( $current_page - 1 ) * $per_page;
+        if ( $per_page === -1 ) {
+            $offset = 0;
+            $per_page = $total_products; // Mostrar todos
+        }
+        
+        // Obtener productos paginados
+        $products = $this->get_products_with_slugs( $search, $offset, $per_page );
+        
+        // Calcular total de páginas
+        $total_pages = $per_page > 0 ? ceil( $total_products / $per_page ) : 1;
+        
         $ajax_nonce = wp_create_nonce( 'pvm_regenerate_nonce' );
 
         ?>
         <div class="wrap">
             <h1>🔧 Gestión de Slugs de Plugins</h1>
 
+            <!-- BUSCADOR -->
             <form method="get" style="margin-bottom:15px;">
                 <input type="hidden" name="page" value="plugin-slugs-manager">
+                <input type="hidden" name="per_page" value="<?php echo esc_attr( $per_page === $total_products ? self::ALL_RESULTS_VALUE : $per_page ); ?>">
                 <label for="pvm_search" class="screen-reader-text">Buscar productos</label>
                 <input type="search" id="pvm_search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Buscar por título..." class="regular-text" />
                 <button class="button" type="submit">Buscar</button>
                 <?php if ( $search ) : ?>
-                    <a href="<?php echo esc_url( remove_query_arg( 's' ) ); ?>" class="button">Limpiar</a>
+                    <a href="<?php echo esc_url( remove_query_arg( array( 's', 'paged' ) ) ); ?>" class="button">Limpiar</a>
                 <?php endif; ?>
             </form>
 
+            <!-- REGENERAR CACHÉ -->
             <div style="margin-bottom:20px;">
                 <button id="pvm-regenerate-button" class="button button-primary">🔄 Regenerar Caché Completo (por lotes)</button>
                 <span id="pvm-regenerate-status" style="margin-left:15px;color:#555;"></span>
             </div>
 
-            <h2>Productos (<?php echo count( $products ); ?>)</h2>
+            <!-- SELECTOR DE RESULTADOS POR PÁGINA -->
+            <div class="tablenav top">
+                <div class="alignleft actions">
+                    <label for="per-page-selector" class="screen-reader-text">Resultados por página</label>
+                    <select name="per_page" id="per-page-selector" onchange="changePerPage(this.value)">
+                        <option value="20" <?php selected( $per_page, 20 ); ?>>20 por página</option>
+                        <option value="40" <?php selected( $per_page, 40 ); ?>>40 por página</option>
+                        <option value="100" <?php selected( $per_page, 100 ); ?>>100 por página</option>
+                        <option value="<?php echo self::ALL_RESULTS_VALUE; ?>" <?php selected( $per_page === self::ALL_RESULTS_VALUE || $per_page === -1 || $per_page === $total_products, true ); ?>>Todos (<?php echo $total_products; ?>)</option>
+                    </select>
+                </div>
+                
+                <div class="tablenav-pages">
+                    <span class="displaying-num"><?php echo $total_products; ?> elementos</span>
+                    <?php if ( $total_pages > 1 ) : ?>
+                        <?php
+                        $base_url = add_query_arg( array(
+                            'page' => 'plugin-slugs-manager',
+                            'per_page' => $per_page === $total_products ? self::ALL_RESULTS_VALUE : $per_page,
+                            's' => $search
+                        ), admin_url( 'admin.php' ) );
+                        ?>
+                        
+                        <span class="pagination-links">
+                            <?php if ( $current_page > 1 ) : ?>
+                                <a class="first-page button" href="<?php echo esc_url( add_query_arg( 'paged', 1, $base_url ) ); ?>">
+                                    <span aria-hidden="true">«</span>
+                                </a>
+                                <a class="prev-page button" href="<?php echo esc_url( add_query_arg( 'paged', $current_page - 1, $base_url ) ); ?>">
+                                    <span aria-hidden="true">‹</span>
+                                </a>
+                            <?php else : ?>
+                                <span class="tablenav-pages-navspan button disabled" aria-hidden="true">«</span>
+                                <span class="tablenav-pages-navspan button disabled" aria-hidden="true">‹</span>
+                            <?php endif; ?>
+                            
+                            <span class="paging-input">
+                                <label for="current-page-selector" class="screen-reader-text">Página actual</label>
+                                <input class="current-page" id="current-page-selector" type="text" name="paged" value="<?php echo esc_attr( $current_page ); ?>" size="<?php echo strlen( $total_pages ); ?>" aria-describedby="table-paging">
+                                <span class="tablenav-paging-text"> de <span class="total-pages"><?php echo $total_pages; ?></span></span>
+                            </span>
+                            
+                            <?php if ( $current_page < $total_pages ) : ?>
+                                <a class="next-page button" href="<?php echo esc_url( add_query_arg( 'paged', $current_page + 1, $base_url ) ); ?>">
+                                    <span aria-hidden="true">›</span>
+                                </a>
+                                <a class="last-page button" href="<?php echo esc_url( add_query_arg( 'paged', $total_pages, $base_url ) ); ?>">
+                                    <span aria-hidden="true">»</span>
+                                </a>
+                            <?php else : ?>
+                                <span class="tablenav-pages-navspan button disabled" aria-hidden="true">›</span>
+                                <span class="tablenav-pages-navspan button disabled" aria-hidden="true">»</span>
+                            <?php endif; ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <h2>Productos (mostrando <?php echo count( $products ); ?> de <?php echo $total_products; ?>)</h2>
 
             <table class="wp-list-table widefat fixed striped">
                 <thead>
@@ -144,11 +231,13 @@ class Plugin_Versions_Manager {
                         <tr><td colspan="5">No hay productos publicados</td></tr>
                     <?php else : ?>
                         <?php foreach ( $products as $product ) : ?>
-                            <tr>
+                            <tr data-product-id="<?php echo $product['id']; ?>">
                                 <td><strong><?php echo esc_html( $product['name'] ); ?></strong><br><small>ID: <?php echo $product['id']; ?></small></td>
                                 <td><code><?php echo esc_html( $product['version'] ); ?></code></td>
                                 <td><code><?php echo esc_html( $product['auto_slug'] ); ?></code></td>
-                                <td><?php echo $product['manual_slug'] ? '<code style="background:#d4edda;padding:3px;">✓ '.esc_html($product['manual_slug']).'</code>' : '<span style="color:#999">—</span>'; ?></td>
+                                <td class="manual-slug-cell">
+                                    <?php echo $product['manual_slug'] ? '<code style="background:#d4edda;padding:3px;">✓ '.esc_html($product['manual_slug']).'</code>' : '<span style="color:#999;">—</span>'; ?>
+                                </td>
                                 <td>
                                     <button class="button" onclick="editSlug(<?php echo $product['id']; ?>, '<?php echo esc_js( $product['name'] ); ?>', '<?php echo esc_js( $product['manual_slug'] ?: $product['auto_slug'] ); ?>')">✏️ Editar</button>
                                 </td>
@@ -177,14 +266,114 @@ class Plugin_Versions_Manager {
         </div>
 
         <script>
+        // ========== MODAL DE EDICIÓN ==========
         function editSlug(productId, productName, currentSlug) {
             document.getElementById('edit-product-id').value = productId;
             document.getElementById('edit-product-name').textContent = productName;
             document.getElementById('manual-slug').value = currentSlug;
             document.getElementById('edit-slug-modal').style.display = 'block';
         }
-        function closeModal() { document.getElementById('edit-slug-modal').style.display = 'none'; }
 
+        function closeModal() { 
+            document.getElementById('edit-slug-modal').style.display = 'none'; 
+        }
+
+        function changePerPage(value) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', value);
+            url.searchParams.delete('paged'); // Reset a página 1
+            window.location.href = url.toString();
+        }
+
+        // ========== GUARDAR SLUG CON AJAX (SIN RECARGAR) ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('#edit-slug-modal form');
+            
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const productId = document.getElementById('edit-product-id').value;
+                    const manualSlug = document.getElementById('manual-slug').value;
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    const originalText = submitBtn.textContent;
+                    
+                    // Deshabilitar botón
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Guardando...';
+                    
+                    // Enviar por AJAX
+                    const formData = new FormData();
+                    formData.append('action', 'pvm_save_manual_slug');
+                    formData.append('product_id', productId);
+                    formData.append('manual_slug', manualSlug);
+                    formData.append('nonce', '<?php echo wp_create_nonce( 'pvm_save_slug_nonce' ); ?>');
+                    
+                    fetch('<?php echo admin_url( 'admin-ajax.php' ); ?>', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Actualizar la fila en la tabla SIN recargar
+                            const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+                            if (row) {
+                                const manualSlugCell = row.querySelector('.manual-slug-cell');
+                                if (manualSlugCell) {
+                                    manualSlugCell.innerHTML = `<code style="background:#d4edda;padding:3px;">✓ ${manualSlug}</code>`;
+                                }
+                                
+                                // Efecto visual de éxito
+                                row.style.backgroundColor = '#d4edda';
+                                setTimeout(() => { row.style.backgroundColor = ''; }, 2000);
+                            }
+                            
+                            // Mostrar notificación de éxito
+                            showNotice('success', '✅ Slug guardado: <code>' + manualSlug + '</code>');
+                            
+                            // Cerrar modal
+                            closeModal();
+                        } else {
+                            showNotice('error', '❌ Error: ' + (data.data?.message || 'Error desconocido'));
+                        }
+                        
+                        // Rehabilitar botón
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                    })
+                    .catch(error => {
+                        showNotice('error', '❌ Error de conexión: ' + error);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                    });
+                });
+            }
+        });
+
+        // Función para mostrar notificaciones
+        function showNotice(type, message) {
+            const noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
+            const notice = document.createElement('div');
+            notice.className = `notice ${noticeClass} is-dismissible`;
+            notice.innerHTML = `<p>${message}</p>`;
+            notice.style.marginTop = '20px';
+            
+            const wrap = document.querySelector('.wrap');
+            if (wrap) {
+                wrap.insertBefore(notice, wrap.firstChild);
+                
+                // Auto-ocultar después de 3 segundos
+                setTimeout(() => {
+                    notice.style.opacity = '0';
+                    notice.style.transition = 'opacity 0.5s';
+                    setTimeout(() => notice.remove(), 500);
+                }, 3000);
+            }
+        }
+
+        // ========== REGENERAR CACHÉ POR LOTES (código existente) ==========
         (function(){
             const batchSize = 20;
             const minDelay = 1200;
@@ -192,6 +381,7 @@ class Plugin_Versions_Manager {
             const ajaxUrl = '<?php echo admin_url( 'admin-ajax.php' ); ?>';
             const nonce = '<?php echo esc_js( $ajax_nonce ); ?>';
             let running = false;
+            
             document.getElementById('pvm-regenerate-button').addEventListener('click', function(){
                 if ( running ) return;
                 if ( ! confirm('Iniciar regeneración por lotes?') ) return;
@@ -370,6 +560,33 @@ class Plugin_Versions_Manager {
         return $total;
     }
 
+    /**
+     * Obtener total de productos con filtro de búsqueda
+     */
+    private function get_total_products_count_with_search( $search = '' ) {
+        $args = array(
+            'post_type' => 'product',
+            'post_status' => 'publish',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'no_found_rows' => false,
+            'meta_query' => array(
+                'relation' => 'AND',
+                array( 'key' => 'version-producto-externoafiliado', 'compare' => 'EXISTS' ),
+                array( 'key' => '_product_url', 'compare' => 'EXISTS' )
+            )
+        );
+        
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $q = new WP_Query( $args );
+        $total = isset( $q->found_posts ) ? intval( $q->found_posts ) : 0;
+        wp_reset_postdata();
+        return $total;
+    }
+
     public function ajax_regenerate_cache_batch() {
         if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Permiso denegado' );
 
@@ -408,6 +625,59 @@ class Plugin_Versions_Manager {
         }
 
         wp_send_json_success( $result );
+    }
+
+    /**
+     * AJAX: Guardar slug manual sin recargar página
+     */
+    public function ajax_save_manual_slug() {
+        // Verificar permisos
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Permiso denegado' ) );
+        }
+        
+        // Verificar nonce
+        $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+        if ( ! wp_verify_nonce( $nonce, 'pvm_save_slug_nonce' ) ) {
+            wp_send_json_error( array( 'message' => 'Nonce inválido' ) );
+        }
+        
+        // Obtener datos
+        $product_id = isset( $_POST['product_id'] ) ? intval( $_POST['product_id'] ) : 0;
+        $manual_slug = isset( $_POST['manual_slug'] ) ? sanitize_title( wp_unslash( $_POST['manual_slug'] ) ) : '';
+        
+        // Validar datos - slug vacío no es permitido (usar delete_manual para eliminar)
+        if ( ! $product_id || empty( $manual_slug ) ) {
+            wp_send_json_error( array( 'message' => 'Datos inválidos' ) );
+        }
+        
+        // Guardar en base de datos
+        $result = $this->save_manual_slug( $product_id, $manual_slug );
+        
+        if ( ! $result ) {
+            wp_send_json_error( array( 'message' => 'Error al guardar en base de datos' ) );
+        }
+        
+        // Regenerar caché completo para mantener sincronización del JSON
+        // Nota: Es necesario para que el archivo plugin-versions-cache.json refleje los cambios
+        $this->regenerate_full_cache();
+        
+        // Obtener datos actualizados del producto
+        $product = get_post( $product_id );
+        if ( ! $product ) {
+            wp_send_json_error( array( 'message' => 'Producto no encontrado' ) );
+        }
+        
+        $version = get_post_meta( $product_id, 'version-producto-externoafiliado', true );
+        $auto_slug = $this->generate_auto_slug( $product->post_title );
+        
+        wp_send_json_success( array(
+            'message' => 'Slug guardado correctamente',
+            'product_id' => $product_id,
+            'manual_slug' => $manual_slug,
+            'auto_slug' => $auto_slug,
+            'version' => ltrim( $version, 'vV' )
+        ) );
     }
 
     public function regenerate_cache_batch( $offset = 0, $limit = 20 ) {
