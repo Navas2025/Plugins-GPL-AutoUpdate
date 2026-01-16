@@ -21,6 +21,10 @@ class Plugin_Versions_Manager {
     private $table_name;
     private $build_transient_key = 'pvm_build_cache';
     private $running_transient_key = 'pvm_rebuild_running';
+    
+    // Pagination constants
+    private const MAX_PER_PAGE_THRESHOLD = 1000;
+    private const ALL_RESULTS_VALUE = 999;
 
     public function __construct() {
         global $wpdb;
@@ -76,7 +80,7 @@ class Plugin_Versions_Manager {
         // Obtener parámetros de paginación
         $per_page = isset( $_GET['per_page'] ) ? intval( $_GET['per_page'] ) : 20;
         if ( $per_page <= 0 ) $per_page = 20;
-        if ( $per_page > 1000 ) $per_page = -1; // "Todos"
+        if ( $per_page > self::MAX_PER_PAGE_THRESHOLD ) $per_page = -1; // "Todos"
         
         $current_page = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
         
@@ -137,7 +141,7 @@ class Plugin_Versions_Manager {
             <!-- BUSCADOR -->
             <form method="get" style="margin-bottom:15px;">
                 <input type="hidden" name="page" value="plugin-slugs-manager">
-                <input type="hidden" name="per_page" value="<?php echo esc_attr( $per_page === $total_products ? 999 : $per_page ); ?>">
+                <input type="hidden" name="per_page" value="<?php echo esc_attr( $per_page === $total_products ? self::ALL_RESULTS_VALUE : $per_page ); ?>">
                 <label for="pvm_search" class="screen-reader-text">Buscar productos</label>
                 <input type="search" id="pvm_search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Buscar por título..." class="regular-text" />
                 <button class="button" type="submit">Buscar</button>
@@ -160,7 +164,7 @@ class Plugin_Versions_Manager {
                         <option value="20" <?php selected( $per_page, 20 ); ?>>20 por página</option>
                         <option value="40" <?php selected( $per_page, 40 ); ?>>40 por página</option>
                         <option value="100" <?php selected( $per_page, 100 ); ?>>100 por página</option>
-                        <option value="999" <?php selected( $per_page >= 999 || $per_page === $total_products, true ); ?>>Todos (<?php echo $total_products; ?>)</option>
+                        <option value="<?php echo self::ALL_RESULTS_VALUE; ?>" <?php selected( $per_page >= self::ALL_RESULTS_VALUE || $per_page === $total_products, true ); ?>>Todos (<?php echo $total_products; ?>)</option>
                     </select>
                 </div>
                 
@@ -170,7 +174,7 @@ class Plugin_Versions_Manager {
                         <?php
                         $base_url = add_query_arg( array(
                             'page' => 'plugin-slugs-manager',
-                            'per_page' => $per_page === $total_products ? 999 : $per_page,
+                            'per_page' => $per_page === $total_products ? self::ALL_RESULTS_VALUE : $per_page,
                             's' => $search
                         ), admin_url( 'admin.php' ) );
                         ?>
@@ -642,7 +646,7 @@ class Plugin_Versions_Manager {
         $product_id = isset( $_POST['product_id'] ) ? intval( $_POST['product_id'] ) : 0;
         $manual_slug = isset( $_POST['manual_slug'] ) ? sanitize_title( wp_unslash( $_POST['manual_slug'] ) ) : '';
         
-        if ( ! $product_id || ! $manual_slug ) {
+        if ( ! $product_id || empty( $manual_slug ) ) {
             wp_send_json_error( array( 'message' => 'Datos inválidos' ) );
         }
         
@@ -658,6 +662,10 @@ class Plugin_Versions_Manager {
         
         // Obtener datos actualizados del producto
         $product = get_post( $product_id );
+        if ( ! $product ) {
+            wp_send_json_error( array( 'message' => 'Producto no encontrado' ) );
+        }
+        
         $version = get_post_meta( $product_id, 'version-producto-externoafiliado', true );
         $auto_slug = $this->generate_auto_slug( $product->post_title );
         
