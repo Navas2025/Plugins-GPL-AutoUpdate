@@ -389,7 +389,14 @@ class Plugin_Versions_Manager {
 
         // Función para mostrar notificaciones
         function showNotice(type, message) {
-            const noticeClass = type === 'success' ? 'notice-success' : (type === 'error' ? 'notice-error' : (type === 'warning' ? 'notice-warning' : 'notice-info'));
+            const noticeClasses = {
+                'success': 'notice-success',
+                'error': 'notice-error',
+                'warning': 'notice-warning',
+                'info': 'notice-info'
+            };
+            const noticeClass = noticeClasses[type] || 'notice-info';
+            
             const notice = document.createElement('div');
             notice.className = `notice ${noticeClass} is-dismissible`;
             notice.innerHTML = `<p>${message}</p>`;
