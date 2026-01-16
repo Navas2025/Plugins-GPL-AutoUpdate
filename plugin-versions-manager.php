@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Versions Manager (con identifiers para matching)
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: Navas (adaptado)
  *
  * Genera plugin-versions-cache.json en uploads con, entre otros campos:
@@ -331,42 +331,41 @@ class Plugin_Versions_Manager {
                 console.log('Product ID:', productId);
                 console.log('Slug:', manualSlug);
                 
-                // 1. CAMBIAR TEXTO DEL BOTÓN
+                // Deshabilitar botón
                 submitBtn.textContent = 'Guardando...';
                 submitBtn.disabled = true;
                 
-                // 2. ENVIAR AJAX EN SEGUNDO PLANO (SIN ESPERAR RESPUESTA)
+                // Preparar datos AJAX
                 const formData = new FormData();
                 formData.append('action', 'pvm_save_manual_slug');
                 formData.append('product_id', productId);
                 formData.append('manual_slug', manualSlug);
                 formData.append('nonce', '<?php echo wp_create_nonce( 'pvm_save_slug_nonce' ); ?>');
                 
+                // Enviar AJAX
                 fetch('<?php echo admin_url( 'admin-ajax.php' ); ?>', {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: formData
                 }).then(function(response) {
-                    console.log('✅ AJAX enviado correctamente');
+                    console.log('✅ AJAX enviado - Status:', response.status);
                     return response.json();
                 }).then(function(data) {
-                    console.log('✅ Respuesta:', data);
-                }).catch(function(error) {
-                    console.error('⚠️ Error AJAX:', error);
-                });
-                
-                // 3. CERRAR MODAL INMEDIATAMENTE (NO ESPERAR RESPUESTA)
-                setTimeout(function() {
+                    console.log('✅ Respuesta servidor:', data);
+                    
+                    // Cerrar modal y recargar INMEDIATAMENTE
                     closeModal();
                     
-                    // 4. MOSTRAR NOTIFICACIÓN
-                    showNotice('✅ Slug guardado: <code>' + manualSlug + '</code><br>Recargando página...', 'success');
+                    // Recargar página sin delay
+                    window.location.reload();
                     
-                    // 5. RECARGAR PÁGINA DESPUÉS DE 2 SEGUNDOS
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 2000);
-                }, 500); // Esperar 500ms para que el AJAX se envíe
+                }).catch(function(error) {
+                    console.error('⚠️ Error AJAX:', error);
+                    
+                    // Incluso si hay error, cerrar y recargar
+                    closeModal();
+                    window.location.reload();
+                });
             });
             
             // ========== NAVEGACIÓN DE PÁGINAS CON ENTER ==========
