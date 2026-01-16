@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Versions Manager (con identifiers para matching)
- * Version: 2.0.7
+ * Version: 2.1.0
  * Author: Navas (adaptado)
  *
  * Genera plugin-versions-cache.json en uploads con, entre otros campos:
@@ -265,8 +265,12 @@ class Plugin_Versions_Manager {
             </div>
         </div>
 
-        <script>
-        // ========== MODAL DE EDICIÓN ==========
+        <script data-no-minify="1" data-no-defer="1">
+        // ========== FUNCIONES GLOBALES ==========
+
+        /**
+         * Abrir modal de edición
+         */
         function editSlug(productId, productName, currentSlug) {
             document.getElementById('edit-product-id').value = productId;
             document.getElementById('edit-product-name').textContent = productName;
@@ -274,106 +278,117 @@ class Plugin_Versions_Manager {
             document.getElementById('edit-slug-modal').style.display = 'block';
         }
 
+        /**
+         * Cerrar modal
+         */
         function closeModal() { 
             document.getElementById('edit-slug-modal').style.display = 'none'; 
         }
 
+        /**
+         * Cambiar resultados por página
+         */
         function changePerPage(value) {
             const url = new URL(window.location.href);
             url.searchParams.set('per_page', value);
-            url.searchParams.delete('paged'); // Reset a página 1
+            url.searchParams.delete('paged');
             window.location.href = url.toString();
         }
 
-        // ========== GUARDAR SLUG CON AJAX (SIN RECARGAR) ==========
+        /**
+         * Mostrar notificación
+         */
+        function showNotice(message, type) {
+            const notice = document.createElement('div');
+            notice.className = 'notice notice-' + (type || 'success') + ' is-dismissible';
+            notice.innerHTML = '<p>' + message + '</p>';
+            notice.style.cssText = 'position: fixed; top: 32px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);';
+            
+            document.body.appendChild(notice);
+            
+            setTimeout(function() {
+                notice.style.opacity = '0';
+                notice.style.transition = 'opacity 0.5s';
+                setTimeout(function() { notice.remove(); }, 500);
+            }, 3000);
+        }
+
+        // ========== EVENTO: GUARDAR SLUG (VERSIÓN ULTRA-SIMPLE) ==========
+
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('#edit-slug-modal form');
             
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
+            if (!form) return;
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const productId = document.getElementById('edit-product-id').value;
+                const manualSlug = document.getElementById('manual-slug').value;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                
+                console.log('=== GUARDANDO SLUG ===');
+                console.log('Product ID:', productId);
+                console.log('Slug:', manualSlug);
+                
+                // 1. CAMBIAR TEXTO DEL BOTÓN
+                submitBtn.textContent = 'Guardando...';
+                submitBtn.disabled = true;
+                
+                // 2. ENVIAR AJAX EN SEGUNDO PLANO (SIN ESPERAR RESPUESTA)
+                const formData = new FormData();
+                formData.append('action', 'pvm_save_manual_slug');
+                formData.append('product_id', productId);
+                formData.append('manual_slug', manualSlug);
+                formData.append('nonce', '<?php echo wp_create_nonce( 'pvm_save_slug_nonce' ); ?>');
+                
+                fetch('<?php echo admin_url( 'admin-ajax.php' ); ?>', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                }).then(function(response) {
+                    console.log('✅ AJAX enviado correctamente');
+                    return response.json();
+                }).then(function(data) {
+                    console.log('✅ Respuesta:', data);
+                }).catch(function(error) {
+                    console.error('⚠️ Error AJAX:', error);
+                });
+                
+                // 3. CERRAR MODAL INMEDIATAMENTE (NO ESPERAR RESPUESTA)
+                setTimeout(function() {
+                    closeModal();
                     
-                    const productId = document.getElementById('edit-product-id').value;
-                    const manualSlug = document.getElementById('manual-slug').value;
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    const originalText = submitBtn.textContent;
+                    // 4. MOSTRAR NOTIFICACIÓN
+                    showNotice('✅ Slug guardado: <code>' + manualSlug + '</code><br>Recargando página...', 'success');
                     
-                    // Deshabilitar botón
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Guardando...';
-                    
-                    // Enviar por AJAX
-                    const formData = new FormData();
-                    formData.append('action', 'pvm_save_manual_slug');
-                    formData.append('product_id', productId);
-                    formData.append('manual_slug', manualSlug);
-                    formData.append('nonce', '<?php echo wp_create_nonce( 'pvm_save_slug_nonce' ); ?>');
-                    
-                    fetch('<?php echo admin_url( 'admin-ajax.php' ); ?>', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Actualizar la fila en la tabla SIN recargar
-                            const row = document.querySelector(`tr[data-product-id="${productId}"]`);
-                            if (row) {
-                                const manualSlugCell = row.querySelector('.manual-slug-cell');
-                                if (manualSlugCell) {
-                                    manualSlugCell.innerHTML = `<code style="background:#d4edda;padding:3px;">✓ ${manualSlug}</code>`;
-                                }
-                                
-                                // Efecto visual de éxito
-                                row.style.backgroundColor = '#d4edda';
-                                setTimeout(() => { row.style.backgroundColor = ''; }, 2000);
-                            }
-                            
-                            // Mostrar notificación de éxito
-                            showNotice('success', '✅ Slug guardado: <code>' + manualSlug + '</code>');
-                            
-                            // Cerrar modal
-                            closeModal();
-                        } else {
-                            showNotice('error', '❌ Error: ' + (data.data?.message || 'Error desconocido'));
-                        }
+                    // 5. RECARGAR PÁGINA DESPUÉS DE 2 SEGUNDOS
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
+                }, 500); // Esperar 500ms para que el AJAX se envíe
+            });
+            
+            // ========== NAVEGACIÓN DE PÁGINAS CON ENTER ==========
+            const pageInput = document.getElementById('current-page-selector');
+            if (pageInput) {
+                pageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const page = parseInt(this.value);
+                        const totalPages = parseInt(document.querySelector('.total-pages').textContent);
                         
-                        // Rehabilitar botón
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
-                    })
-                    .catch(error => {
-                        showNotice('error', '❌ Error de conexión: ' + error);
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
-                    });
+                        if (page >= 1 && page <= totalPages) {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('paged', page);
+                            window.location.href = url.toString();
+                        }
+                    }
                 });
             }
         });
 
-        // Función para mostrar notificaciones
-        function showNotice(type, message) {
-            const noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
-            const notice = document.createElement('div');
-            notice.className = `notice ${noticeClass} is-dismissible`;
-            notice.innerHTML = `<p>${message}</p>`;
-            notice.style.marginTop = '20px';
-            
-            const wrap = document.querySelector('.wrap');
-            if (wrap) {
-                wrap.insertBefore(notice, wrap.firstChild);
-                
-                // Auto-ocultar después de 3 segundos
-                setTimeout(() => {
-                    notice.style.opacity = '0';
-                    notice.style.transition = 'opacity 0.5s';
-                    setTimeout(() => notice.remove(), 500);
-                }, 3000);
-            }
-        }
-
-        // ========== REGENERAR CACHÉ POR LOTES (código existente) ==========
+        // ========== REGENERAR CACHÉ POR LOTES ==========
         (function(){
             const batchSize = 20;
             const minDelay = 1200;
@@ -382,43 +397,67 @@ class Plugin_Versions_Manager {
             const nonce = '<?php echo esc_js( $ajax_nonce ); ?>';
             let running = false;
             
-            document.getElementById('pvm-regenerate-button').addEventListener('click', function(){
-                if ( running ) return;
-                if ( ! confirm('Iniciar regeneración por lotes?') ) return;
-                running = true;
-                this.disabled = true;
-                runBatch(0);
-            });
+            const regenButton = document.getElementById('pvm-regenerate-button');
+            if (regenButton) {
+                regenButton.addEventListener('click', function(){
+                    if (running) return;
+                    if (!confirm('¿Iniciar regeneración por lotes?')) return;
+                    
+                    running = true;
+                    this.disabled = true;
+                    runBatch(0);
+                });
+            }
 
             function runBatch(offset) {
-                document.getElementById('pvm-regenerate-status').textContent = 'Procesando offset ' + offset;
+                const statusEl = document.getElementById('pvm-regenerate-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Procesando offset ' + offset;
+                }
+                
                 const form = new FormData();
                 form.append('action', 'pvm_regenerate_cache_batch');
                 form.append('offset', offset);
                 form.append('limit', batchSize);
                 form.append('nonce', nonce);
-                fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: form })
-                .then(r => r.json())
-                .then(data => {
-                    if ( ! data || ! data.success ) {
-                        document.getElementById('pvm-regenerate-status').textContent = 'Error: ' + JSON.stringify(data);
+                
+                fetch(ajaxUrl, { 
+                    method: 'POST', 
+                    credentials: 'same-origin', 
+                    body: form 
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data || !data.success) {
+                        if (statusEl) {
+                            statusEl.textContent = 'Error: ' + JSON.stringify(data);
+                        }
                         running = false;
-                        document.getElementById('pvm-regenerate-button').disabled = false;
+                        if (regenButton) regenButton.disabled = false;
                         return;
                     }
+                    
                     const d = data.data;
-                    document.getElementById('pvm-regenerate-status').textContent = 'Procesados ' + d.processed + ' de ' + d.total + (d.finished ? ' — Finalizado' : '');
-                    if ( d.finished ) {
+                    if (statusEl) {
+                        statusEl.textContent = 'Procesados ' + d.processed + ' de ' + d.total + (d.finished ? ' — ✅ Finalizado' : '');
+                    }
+                    
+                    if (d.finished) {
                         running = false;
-                        document.getElementById('pvm-regenerate-button').disabled = false;
+                        if (regenButton) regenButton.disabled = false;
                         return;
                     }
-                    const delay = Math.floor(Math.random()*(maxDelay-minDelay))+minDelay;
-                    setTimeout(function(){ runBatch(d.next_offset); }, delay);
-                }).catch(err=>{
-                    document.getElementById('pvm-regenerate-status').textContent = 'Error en petición: ' + err;
+                    
+                    const delay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+                    setTimeout(function() { runBatch(d.next_offset); }, delay);
+                })
+                .catch(function(err) {
+                    console.error('❌ Error en regeneración:', err);
+                    if (statusEl) {
+                        statusEl.textContent = 'Error en petición: ' + err;
+                    }
                     running = false;
-                    document.getElementById('pvm-regenerate-button').disabled = false;
+                    if (regenButton) regenButton.disabled = false;
                 });
             }
         })();
