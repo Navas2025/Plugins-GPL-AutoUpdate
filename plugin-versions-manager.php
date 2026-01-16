@@ -164,7 +164,7 @@ class Plugin_Versions_Manager {
                         <option value="20" <?php selected( $per_page, 20 ); ?>>20 por página</option>
                         <option value="40" <?php selected( $per_page, 40 ); ?>>40 por página</option>
                         <option value="100" <?php selected( $per_page, 100 ); ?>>100 por página</option>
-                        <option value="<?php echo self::ALL_RESULTS_VALUE; ?>" <?php selected( $per_page >= self::ALL_RESULTS_VALUE || $per_page === $total_products, true ); ?>>Todos (<?php echo $total_products; ?>)</option>
+                        <option value="<?php echo self::ALL_RESULTS_VALUE; ?>" <?php selected( $per_page === self::ALL_RESULTS_VALUE || $per_page === -1 || $per_page === $total_products, true ); ?>>Todos (<?php echo $total_products; ?>)</option>
                     </select>
                 </div>
                 
@@ -646,6 +646,7 @@ class Plugin_Versions_Manager {
         $product_id = isset( $_POST['product_id'] ) ? intval( $_POST['product_id'] ) : 0;
         $manual_slug = isset( $_POST['manual_slug'] ) ? sanitize_title( wp_unslash( $_POST['manual_slug'] ) ) : '';
         
+        // Validar datos - slug vacío no es permitido (usar delete_manual para eliminar)
         if ( ! $product_id || empty( $manual_slug ) ) {
             wp_send_json_error( array( 'message' => 'Datos inválidos' ) );
         }
@@ -657,7 +658,8 @@ class Plugin_Versions_Manager {
             wp_send_json_error( array( 'message' => 'Error al guardar en base de datos' ) );
         }
         
-        // Regenerar caché
+        // Regenerar caché completo para mantener sincronización del JSON
+        // Nota: Es necesario para que el archivo plugin-versions-cache.json refleje los cambios
         $this->regenerate_full_cache();
         
         // Obtener datos actualizados del producto
