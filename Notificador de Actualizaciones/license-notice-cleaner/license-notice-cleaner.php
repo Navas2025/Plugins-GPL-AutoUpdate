@@ -1,30 +1,36 @@
 <?php
 /**
- * Plugin Name: Notificacion Plugins Actualizables
- * Description: Sistema de gestión de actualizaciones y limpieza de avisos de licencias
- * Version: 2.5.0
- * Author: Navas
- * Requires PHP: 7.2
+ * Plugin Name:       Notificacion Plugins Actualizables
+ * Plugin URI:        https://plugins-wp.online
+ * Description:       Sistema de notificación de actualizaciones disponibles para plugins
+ * Version:           2.5.6
+ * Author:            Navas
+ * Author URI:        https://plugins-wp.online
+ * License:           GPL-2.0+
+ * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
+ * Text Domain:       notificacion-plugins-actualizables
+ * Requires PHP:      7.2
  * Requires at least: 5.0
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Constantes
-define( 'LNC_VERSION', '2.5.0' );
+define( 'LNC_VERSION', '2.5.6' );
 define( 'LNC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LNC_API_URL', 'https://plugins-wp.online/check-updates.php' );
-define( 'LNC_API_KEY', 'GPL-2024-PREMIUM-ACCESS' );
 
-// Cargar clases
-require_once LNC_PLUGIN_DIR . 'includes/class-notice-cleaner.php';
+// API Key ofuscada (se decodifica en runtime)
+define( 'LNC_API_KEY_ENCODED', base64_encode( 'GPL-2024-PREMIUM-ACCESS' ) );
+define( 'LNC_API_KEY', base64_decode( LNC_API_KEY_ENCODED ) );
+
+// Cargar SOLO el verificador de actualizaciones
 require_once LNC_PLUGIN_DIR . 'includes/class-update-checker.php';
 
 // Inicializar
 add_action( 'plugins_loaded', 'lnc_init' );
 
 function lnc_init() {
-    LNC_Notice_Cleaner::init();
     LNC_Update_Checker::init();
 }
 
