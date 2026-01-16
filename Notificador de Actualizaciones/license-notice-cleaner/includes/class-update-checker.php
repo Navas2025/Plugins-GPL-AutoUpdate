@@ -502,6 +502,12 @@ class LNC_Update_Checker {
             return;
         }
         
+        // Verificar permisos
+        if ( ! current_user_can( 'update_plugins' ) ) {
+            wp_send_json_error( array( 'message' => 'Permisos insuficientes' ) );
+            return;
+        }
+        
         // Verificar que se proporcionó el slug
         if ( ! isset( $_POST['slug'] ) ) {
             wp_send_json_error( array( 'message' => 'Slug no proporcionado' ) );
@@ -530,6 +536,12 @@ class LNC_Update_Checker {
         $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( $_POST['nonce'] ) : '';
         if ( ! wp_verify_nonce( $nonce, 'lnc_dismiss_nonce' ) ) {
             wp_send_json_error( array( 'message' => 'Nonce inválido' ) );
+            return;
+        }
+        
+        // Verificar permisos
+        if ( ! current_user_can( 'update_plugins' ) ) {
+            wp_send_json_error( array( 'message' => 'Permisos insuficientes' ) );
             return;
         }
         
