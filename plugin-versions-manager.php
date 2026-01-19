@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Versions Manager (con identifiers para matching)
- * Version: 2.0.7
+ * Version: 2.0.9
  * Author: Navas (adaptado)
  *
  * Genera plugin-versions-cache.json en uploads con, entre otros campos:
@@ -265,8 +265,42 @@ class Plugin_Versions_Manager {
             </div>
         </div>
 
-        <script>
-        // ========== MODAL DE EDICIÓN ==========
+        <script data-no-minify="1" data-no-defer="1">
+        // ========== FUNCIONES AUXILIARES (DEFINIR PRIMERO) ==========
+
+        /**
+         * Mostrar notificaciones en la parte superior de la página
+         */
+        function showNotice(type, message) {
+            const noticeTypes = {
+                'success': 'notice-success',
+                'error': 'notice-error',
+                'warning': 'notice-warning',
+                'info': 'notice-info'
+            };
+            
+            const noticeClass = noticeTypes[type] || 'notice-info';
+            const notice = document.createElement('div');
+            notice.className = `notice ${noticeClass} is-dismissible`;
+            notice.innerHTML = `<p>${message}</p>`;
+            notice.style.marginTop = '20px';
+            
+            const wrap = document.querySelector('.wrap');
+            if (wrap) {
+                wrap.insertBefore(notice, wrap.firstChild);
+                
+                // Auto-ocultar después de 5 segundos
+                setTimeout(() => {
+                    notice.style.opacity = '0';
+                    notice.style.transition = 'opacity 0.5s';
+                    setTimeout(() => notice.remove(), 500);
+                }, 5000);
+            }
+        }
+
+        /**
+         * Abrir modal de edición de slug
+         */
         function editSlug(productId, productName, currentSlug) {
             document.getElementById('edit-product-id').value = productId;
             document.getElementById('edit-product-name').textContent = productName;
@@ -274,10 +308,16 @@ class Plugin_Versions_Manager {
             document.getElementById('edit-slug-modal').style.display = 'block';
         }
 
+        /**
+         * Cerrar modal de edición
+         */
         function closeModal() { 
             document.getElementById('edit-slug-modal').style.display = 'none'; 
         }
 
+        /**
+         * Cambiar resultados por página
+         */
         function changePerPage(value) {
             const url = new URL(window.location.href);
             url.searchParams.set('per_page', value);
@@ -285,8 +325,10 @@ class Plugin_Versions_Manager {
             window.location.href = url.toString();
         }
 
-        // ========== GUARDAR SLUG CON AJAX (SIN RECARGAR) ==========
+        // ========== EVENT LISTENERS ==========
+
         document.addEventListener('DOMContentLoaded', function() {
+            // ========== GUARDAR SLUG CON AJAX (SIN RECARGAR) ==========
             const form = document.querySelector('#edit-slug-modal form');
             
             if (form) {
@@ -298,9 +340,22 @@ class Plugin_Versions_Manager {
                     const submitBtn = form.querySelector('button[type="submit"]');
                     const originalText = submitBtn.textContent;
                     
+                    console.log('=== DEBUG: Guardando slug ===');
+                    console.log('Product ID:', productId);
+                    console.log('Manual Slug:', manualSlug);
+                    
                     // Deshabilitar botón
                     submitBtn.disabled = true;
                     submitBtn.textContent = 'Guardando...';
+                    
+                    // Timeout de seguridad MÁS AGRESIVO: 5 segundos
+                    const timeoutId = setTimeout(function() {
+                        console.warn('⏱️ TIMEOUT: Cerrando modal después de 5 segundos');
+                        closeModal();
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalText;
+                        showNotice('info', 'ℹ️ Timeout alcanzado. Verifique si el slug se guardó en la tabla.');
+                    }, 5000); // 5 segundos (antes eran 10)
                     
                     // Enviar por AJAX
                     const formData = new FormData();
@@ -314,9 +369,18 @@ class Plugin_Versions_Manager {
                         credentials: 'same-origin',
                         body: formData
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('✅ Respuesta HTTP status:', response.status);
+                        return response.json();
+                    })
                     .then(data => {
-                        if (data.success) {
+                        console.log('✅ Respuesta del servidor:', data);
+                        clearTimeout(timeoutId);
+                        
+                        // Detección robusta de éxito
+                        if (data && (data.success === true || (data.data && data.data.manual_slug))) {
+                            console.log('✅ Slug guardado exitosamente');
+                            
                             // Actualizar la fila en la tabla SIN recargar
                             const row = document.querySelector(`tr[data-product-id="${productId}"]`);
                             if (row) {
@@ -333,47 +397,62 @@ class Plugin_Versions_Manager {
                             // Mostrar notificación de éxito
                             showNotice('success', '✅ Slug guardado: <code>' + manualSlug + '</code>');
                             
-                            // Cerrar modal
-                            closeModal();
+                            // Cerrar modal automáticamente después de 1 segundo
+                            setTimeout(function() {
+                                closeModal();
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = originalText;
+                            }, 1000);
+                            
                         } else {
-                            showNotice('error', '❌ Error: ' + (data.data?.message || 'Error desconocido'));
+                            console.error('⚠️ Respuesta inesperada:', data);
+                            clearTimeout(timeoutId);
+                            
+                            showNotice('warning', '⚠️ Respuesta inesperada. Verifique la tabla.');
+                            
+                            // Cerrar modal de todas formas después de 2 segundos
+                            setTimeout(function() {
+                                closeModal();
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = originalText;
+                            }, 2000);
                         }
-                        
-                        // Rehabilitar botón
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
                     })
                     .catch(error => {
-                        showNotice('error', '❌ Error de conexión: ' + error);
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = originalText;
+                        console.error('❌ Error en fetch AJAX:', error);
+                        clearTimeout(timeoutId);
+                        
+                        showNotice('error', '❌ Error de conexión: ' + error.message);
+                        
+                        // Cerrar modal después de 2 segundos incluso con error
+                        setTimeout(function() {
+                            closeModal();
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalText;
+                        }, 2000);
                     });
+                });
+            }
+            
+            // ========== ENTER EN INPUT DE PÁGINA ==========
+            const pageInput = document.getElementById('current-page-selector');
+            if (pageInput) {
+                pageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const page = parseInt(this.value);
+                        const totalPages = parseInt(document.querySelector('.total-pages').textContent);
+                        if (page >= 1 && page <= totalPages) {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('paged', page);
+                            window.location.href = url.toString();
+                        }
+                    }
                 });
             }
         });
 
-        // Función para mostrar notificaciones
-        function showNotice(type, message) {
-            const noticeClass = type === 'success' ? 'notice-success' : 'notice-error';
-            const notice = document.createElement('div');
-            notice.className = `notice ${noticeClass} is-dismissible`;
-            notice.innerHTML = `<p>${message}</p>`;
-            notice.style.marginTop = '20px';
-            
-            const wrap = document.querySelector('.wrap');
-            if (wrap) {
-                wrap.insertBefore(notice, wrap.firstChild);
-                
-                // Auto-ocultar después de 3 segundos
-                setTimeout(() => {
-                    notice.style.opacity = '0';
-                    notice.style.transition = 'opacity 0.5s';
-                    setTimeout(() => notice.remove(), 500);
-                }, 3000);
-            }
-        }
-
-        // ========== REGENERAR CACHÉ POR LOTES (código existente) ==========
+        // ========== REGENERAR CACHÉ POR LOTES (IIFE) ==========
         (function(){
             const batchSize = 20;
             const minDelay = 1200;
@@ -382,43 +461,62 @@ class Plugin_Versions_Manager {
             const nonce = '<?php echo esc_js( $ajax_nonce ); ?>';
             let running = false;
             
-            document.getElementById('pvm-regenerate-button').addEventListener('click', function(){
-                if ( running ) return;
-                if ( ! confirm('Iniciar regeneración por lotes?') ) return;
-                running = true;
-                this.disabled = true;
-                runBatch(0);
-            });
+            const regenButton = document.getElementById('pvm-regenerate-button');
+            if (regenButton) {
+                regenButton.addEventListener('click', function(){
+                    if ( running ) return;
+                    if ( ! confirm('¿Iniciar regeneración por lotes?') ) return;
+                    running = true;
+                    this.disabled = true;
+                    runBatch(0);
+                });
+            }
 
             function runBatch(offset) {
-                document.getElementById('pvm-regenerate-status').textContent = 'Procesando offset ' + offset;
+                const statusEl = document.getElementById('pvm-regenerate-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Procesando offset ' + offset;
+                }
+                
                 const form = new FormData();
                 form.append('action', 'pvm_regenerate_cache_batch');
                 form.append('offset', offset);
                 form.append('limit', batchSize);
                 form.append('nonce', nonce);
+                
                 fetch(ajaxUrl, { method: 'POST', credentials: 'same-origin', body: form })
                 .then(r => r.json())
                 .then(data => {
                     if ( ! data || ! data.success ) {
-                        document.getElementById('pvm-regenerate-status').textContent = 'Error: ' + JSON.stringify(data);
+                        if (statusEl) {
+                            statusEl.textContent = 'Error: ' + JSON.stringify(data);
+                        }
                         running = false;
-                        document.getElementById('pvm-regenerate-button').disabled = false;
+                        if (regenButton) regenButton.disabled = false;
                         return;
                     }
+                    
                     const d = data.data;
-                    document.getElementById('pvm-regenerate-status').textContent = 'Procesados ' + d.processed + ' de ' + d.total + (d.finished ? ' — Finalizado' : '');
+                    if (statusEl) {
+                        statusEl.textContent = 'Procesados ' + d.processed + ' de ' + d.total + (d.finished ? ' — ✅ Finalizado' : '');
+                    }
+                    
                     if ( d.finished ) {
                         running = false;
-                        document.getElementById('pvm-regenerate-button').disabled = false;
+                        if (regenButton) regenButton.disabled = false;
                         return;
                     }
+                    
                     const delay = Math.floor(Math.random()*(maxDelay-minDelay))+minDelay;
                     setTimeout(function(){ runBatch(d.next_offset); }, delay);
-                }).catch(err=>{
-                    document.getElementById('pvm-regenerate-status').textContent = 'Error en petición: ' + err;
+                })
+                .catch(err=>{
+                    console.error('❌ Error en regeneración:', err);
+                    if (statusEl) {
+                        statusEl.textContent = 'Error en petición: ' + err;
+                    }
                     running = false;
-                    document.getElementById('pvm-regenerate-button').disabled = false;
+                    if (regenButton) regenButton.disabled = false;
                 });
             }
         })();
