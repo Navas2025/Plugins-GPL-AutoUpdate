@@ -553,20 +553,22 @@ add_filter('pre_set_site_transient_update_plugins', function ($transient) {
             'current_version' => $current_version,
             'api_key' => AMELIA_GPL_API_KEY
         ],
-        'timeout' => 10
+        'timeout' => 5
     ]);
 
     if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
-        if ($remote_data && version_compare($current_version, $remote_data->version, '<')) {
+        if ($remote_data && is_object($remote_data) && 
+            isset($remote_data->version) && isset($remote_data->package) && 
+            version_compare($current_version, $remote_data->version, '<')) {
             $transient->response[$plugin_slug] = (object) [
                 'slug' => 'ameliabooking-gpl',
                 'plugin' => $plugin_slug,
                 'new_version' => $remote_data->version,
-                'url' => $remote_data->url,
+                'url' => isset($remote_data->url) ? $remote_data->url : '',
                 'package' => $remote_data->package,
-                'tested' => $remote_data->tested,
+                'tested' => isset($remote_data->tested) ? $remote_data->tested : '',
                 'requires_php' => '5.5'
             ];
         }
@@ -589,35 +591,38 @@ add_filter('plugins_api', function ($res, $action, $args) {
             'plugin_slug' => 'ameliabooking',
             'api_key' => AMELIA_GPL_API_KEY
         ],
-        'timeout' => 10
+        'timeout' => 5
     ]);
 
     if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
-        $res = (object) [
-            'name' => $remote_data->name,
-            'slug' => 'ameliabooking-gpl',
-            'version' => $remote_data->version,
-            'tested' => $remote_data->tested,
-            'requires' => '5.0',
-            'requires_php' => '5.5',
-            'author' => '<a href="https://wpamelia.com">Melograno Ventures</a>',
-            'author_profile' => 'https://melograno.io',
-            'download_link' => $remote_data->package,
-            'trunk' => $remote_data->package,
-            'last_updated' => $remote_data->last_updated,
-            'sections' => [
-                'description' => $remote_data->description,
-                'changelog' => $remote_data->changelog
-            ],
-            'banners' => [
-                'low' => $remote_data->banner_low,
-                'high' => $remote_data->banner_high
-            ]
-        ];
+        if ($remote_data && is_object($remote_data) && 
+            isset($remote_data->name) && isset($remote_data->version) && isset($remote_data->package)) {
+            $res = (object) [
+                'name' => $remote_data->name,
+                'slug' => 'ameliabooking-gpl',
+                'version' => $remote_data->version,
+                'tested' => isset($remote_data->tested) ? $remote_data->tested : '',
+                'requires' => '5.0',
+                'requires_php' => '5.5',
+                'author' => '<a href="https://wpamelia.com">Melograno Ventures</a>',
+                'author_profile' => 'https://melograno.io',
+                'download_link' => $remote_data->package,
+                'trunk' => $remote_data->package,
+                'last_updated' => isset($remote_data->last_updated) ? $remote_data->last_updated : '',
+                'sections' => [
+                    'description' => isset($remote_data->description) ? $remote_data->description : '',
+                    'changelog' => isset($remote_data->changelog) ? $remote_data->changelog : ''
+                ],
+                'banners' => [
+                    'low' => isset($remote_data->banner_low) ? $remote_data->banner_low : '',
+                    'high' => isset($remote_data->banner_high) ? $remote_data->banner_high : ''
+                ]
+            ];
 
-        return $res;
+            return $res;
+        }
     }
 
     return $res;
