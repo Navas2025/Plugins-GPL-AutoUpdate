@@ -73,8 +73,8 @@ add_action('plugins_loaded', function () {
                 'body' => json_encode($_config->cloud_response)
             ];
         } elseif (strpos($url, "{$_config->api}/connect/v1/library/get_template_content") !== false) {
-            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['sslverify' => false, 'timeout' => 25]);
-            if (wp_remote_retrieve_response_code($response) == 200) {
+            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['timeout' => 25]);
+            if (wp_remote_retrieve_response_code($response) === 200) {
                 return $response;
             } else {
                 return $pre;
@@ -145,7 +145,7 @@ add_filter('pre_set_site_transient_update_plugins', function ($transient) {
     }
 
     $plugin_slug = plugin_basename(__FILE__);
-    $current_version = '3.34.3';
+    $current_version = ELEMENTOR_PRO_VERSION;
 
     $remote = wp_remote_post(ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'check-update', [
         'body' => [
@@ -156,7 +156,7 @@ add_filter('pre_set_site_transient_update_plugins', function ($transient) {
         'timeout' => 10
     ]);
 
-    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
+    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] === 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
         if ($remote_data && version_compare($current_version, $remote_data->version, '<')) {
@@ -192,7 +192,7 @@ add_filter('plugins_api', function ($res, $action, $args) {
         'timeout' => 10
     ]);
 
-    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
+    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] === 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
         $res = (object) [
