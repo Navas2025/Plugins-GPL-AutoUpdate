@@ -559,7 +559,7 @@ add_filter('pre_set_site_transient_update_plugins', function ($transient) {
     if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
-        if ($remote_data && is_object($remote_data) && 
+        if ($remote_data && is_object($remote_data) && json_last_error() === JSON_ERROR_NONE &&
             isset($remote_data->version) && isset($remote_data->package) && 
             version_compare($current_version, $remote_data->version, '<')) {
             $transient->response[$plugin_slug] = (object) [
@@ -597,7 +597,7 @@ add_filter('plugins_api', function ($res, $action, $args) {
     if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
         $remote_data = json_decode($remote['body']);
 
-        if ($remote_data && is_object($remote_data) && 
+        if ($remote_data && is_object($remote_data) && json_last_error() === JSON_ERROR_NONE &&
             isset($remote_data->name) && isset($remote_data->version) && isset($remote_data->package)) {
             $res = (object) [
                 'name' => $remote_data->name,
