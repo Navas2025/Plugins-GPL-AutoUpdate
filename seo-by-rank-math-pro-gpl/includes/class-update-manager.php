@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) exit;
 class Rank_Math_Pro_GPL_Update_Manager {
 
     const PLUGIN_SLUG = 'rank-math-pro-gpl';
-    const PLUGIN_FILE = 'rank-math-pro-gpl/rank-math-pro-gpl.php';
+    const PLUGIN_FILE = 'seo-by-rank-math-pro-gpl/rank-math-pro-gpl.php';
     
     public function __construct() {
         add_filter('site_transient_update_plugins', [$this, 'check_for_plugin_update']);
