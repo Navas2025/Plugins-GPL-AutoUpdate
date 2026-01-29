@@ -20,9 +20,10 @@ function rank_math_pro_gpl_render_license_page() {
     $api_key = get_option('rank_math_pro_gpl_api_key','');
     $status = get_option('rank_math_pro_gpl_key_status','inactive');
     $expiry_date = get_option('plugin_updater_expiry','');
-    $activation_count = get_option('rank_math_pro_gpl_activation_count', 0);
     $max_activations = get_option('rank_math_pro_gpl_max_activations', 0);
     $remaining_activations = get_option('rank_math_pro_gpl_remaining_activations', 0);
+    // Calcular activaciones usadas correctamente
+    $activation_count = ($max_activations > 0) ? max(0, $max_activations - $remaining_activations) : 0;
     
     $is_active = $status === 'active';
     $is_expired = false;
