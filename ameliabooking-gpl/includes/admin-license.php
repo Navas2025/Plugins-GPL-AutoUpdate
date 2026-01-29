@@ -23,7 +23,7 @@ function amelia_gpl_render_license_page() {
     $max_activations = get_option('amelia_gpl_max_activations', 0);
     $remaining_activations = get_option('amelia_gpl_remaining_activations', 0);
     // Calcular activaciones usadas correctamente
-    $activation_count = ($max_activations > 0) ? ($max_activations - $remaining_activations) : 0;
+    $activation_count = ($max_activations > 0) ? max(0, $max_activations - $remaining_activations) : 0;
     
     $is_active = $status === 'active';
 
