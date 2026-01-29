@@ -25,9 +25,10 @@ function yoast_seo_premium_gpl_render_license_page() {
     $api_key = get_option('yoast_seo_premium_gpl_api_key','');
     $status = get_option('yoast_seo_premium_gpl_key_status','inactive');
     $expiry_date = get_option('yoast_seo_premium_gpl_expiry','');
-    $activation_count = get_option('yoast_seo_premium_gpl_activation_count', 0);
     $max_activations = get_option('yoast_seo_premium_gpl_max_activations', 0);
     $remaining_activations = get_option('yoast_seo_premium_gpl_remaining_activations', 0);
+    // Calcular activaciones usadas correctamente (igual que Amelia y Rank Math)
+    $activation_count = ($max_activations > 0) ? max(0, $max_activations - $remaining_activations) : 0;
     
     // Determinar si está activa
     $is_active = $status === 'active';
