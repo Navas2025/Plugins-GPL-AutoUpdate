@@ -642,6 +642,15 @@ add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
 add_action('wp_ajax_amelia_remove_wpdt_promo_notice', array('AmeliaBooking\Plugin', 'amelia_remove_wpdt_promo_notice'));
 add_action('admin_head', array('AmeliaBooking\Plugin', 'hide_notices_on_amelia_pages'));
 
+// ========== CARGAR INTERFAZ ADMIN GPL ==========
+
+if ( is_admin() ) {
+    $includes_dir = __DIR__ . '/includes/';
+    if ( file_exists( $includes_dir . 'admin-license.php' ) ) require_once $includes_dir . 'admin-license.php';
+    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) require_once $includes_dir . 'ajax-license.php';
+    if ( file_exists( $includes_dir . 'class-update-manager.php' ) ) require_once $includes_dir . 'class-update-manager.php';
+}
+
 if (is_admin()) {
     add_action('wp_loaded', array('AmeliaBooking\Infrastructure\Services\Outlook\OutlookCalendarService', 'handleCallback'));
 }
