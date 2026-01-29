@@ -70,11 +70,6 @@ add_action('wp_ajax_amelia_gpl_validate_key', function(){
             'expiry_date' => $data['data']['expiry_date'] ?? null
         ]);
     } else {
-        // Limpiar datos de activación antiguos en caso de fallo
-        delete_option('amelia_gpl_activation_count');
-        delete_option('amelia_gpl_max_activations');
-        delete_option('amelia_gpl_remaining_activations');
-        
         $error_message = isset($data['message']) ? $data['message'] : 'API Key inválida.';
         wp_send_json_error(['message' => $error_message]);
     }
