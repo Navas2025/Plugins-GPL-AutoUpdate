@@ -50,6 +50,19 @@ add_action('wp_ajax_amelia_gpl_validate_key', function(){
             update_option('amelia_gpl_expiry', $data['data']['expiry_date']);
         }
         
+        // Guardar datos de activaciones
+        if (isset($data['data']['activation_count'])) {
+            update_option('amelia_gpl_activation_count', $data['data']['activation_count']);
+        }
+        
+        if (isset($data['data']['max_activations'])) {
+            update_option('amelia_gpl_max_activations', $data['data']['max_activations']);
+        }
+        
+        if (isset($data['data']['remaining_activations'])) {
+            update_option('amelia_gpl_remaining_activations', $data['data']['remaining_activations']);
+        }
+        
         $success_message = isset($data['message']) ? $data['message'] : '¡API Key activada!';
         wp_send_json_success([
             'message' => $success_message,
@@ -72,6 +85,9 @@ add_action('wp_ajax_amelia_gpl_deactivate_key', function(){
     delete_option('amelia_gpl_api_key');
     delete_option('amelia_gpl_key_status');
     delete_option('amelia_gpl_expiry');
+    delete_option('amelia_gpl_activation_count');
+    delete_option('amelia_gpl_max_activations');
+    delete_option('amelia_gpl_remaining_activations');
     
     wp_send_json_success(['message' => 'API Key desactivada.']);
 });
