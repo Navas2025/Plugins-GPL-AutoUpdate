@@ -21,7 +21,7 @@ class Amelia_GPL_Update_Manager {
         $current_version = $transient->checked[$plugin_file] ?? false;
         $api_key = get_option('amelia_gpl_api_key', '');
         $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('plugin_updater_expiry', '');
+        $expiry_date = get_option('amelia_gpl_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);
@@ -60,6 +60,10 @@ class Amelia_GPL_Update_Manager {
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
 
+        if (!is_array($data) || json_last_error() !== JSON_ERROR_NONE) {
+            return $transient;
+        }
+
         if (isset($data['new_version']) && version_compare($current_version, $data['new_version'], '<')) {
             
             $transient->response[$plugin_file] = (object) [
@@ -86,7 +90,7 @@ class Amelia_GPL_Update_Manager {
         
         $api_key = get_option('amelia_gpl_api_key', '');
         $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('plugin_updater_expiry', '');
+        $expiry_date = get_option('amelia_gpl_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);

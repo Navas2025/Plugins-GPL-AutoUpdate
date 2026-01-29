@@ -19,13 +19,12 @@ function amelia_gpl_render_license_page() {
     
     $api_key = get_option('amelia_gpl_api_key','');
     $status = get_option('amelia_gpl_key_status','inactive');
-    $expiry_date = get_option('plugin_updater_expiry','');
+    $expiry_date = get_option('amelia_gpl_expiry','');
     $activation_count = get_option('amelia_gpl_activation_count', 0);
     $max_activations = get_option('amelia_gpl_max_activations', 0);
     $remaining_activations = get_option('amelia_gpl_remaining_activations', 0);
     
     $is_active = $status === 'active';
-    $is_expired = false;
 
     if ($is_active && !empty($expiry_date)) {
         $expiry_timestamp = strtotime($expiry_date);
@@ -126,7 +125,10 @@ function amelia_gpl_render_license_page() {
         const ajaxUrl = '<?php echo esc_url(admin_url('admin-ajax.php')); ?>';
         
         function showMessage(text, type) {
-            msgBox.innerHTML = `<p>${text}</p>`;
+            const p = document.createElement('p');
+            p.textContent = text;
+            msgBox.innerHTML = '';
+            msgBox.appendChild(p);
             msgBox.className = `notice notice-${type} is-dismissible`;
             msgBox.style.display = 'block';
             msgBox.scrollIntoView({ behavior: 'smooth', block: 'start' });

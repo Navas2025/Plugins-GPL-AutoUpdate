@@ -32,7 +32,7 @@ add_action('wp_ajax_amelia_gpl_validate_key', function(){
     $code = wp_remote_retrieve_response_code($response);
     $body = wp_remote_retrieve_body($response);
     
-    if ($code != 200) {
+    if ($code !== 200) {
         wp_send_json_error(['message' => 'Respuesta inesperada: HTTP ' . $code]);
     }
     
@@ -43,14 +43,12 @@ add_action('wp_ajax_amelia_gpl_validate_key', function(){
     }
     
     if (isset($data['success']) && $data['success']) {
-        update_option('plugin_updater_api_key', $api_key);
-        
-        if (isset($data['data']['expiry_date'])) {
-            update_option('plugin_updater_expiry', $data['data']['expiry_date']);
-        }
-        
         update_option('amelia_gpl_api_key', $api_key);
         update_option('amelia_gpl_key_status', 'active');
+        
+        if (isset($data['data']['expiry_date'])) {
+            update_option('amelia_gpl_expiry', $data['data']['expiry_date']);
+        }
         
         $success_message = isset($data['message']) ? $data['message'] : '¡API Key activada!';
         wp_send_json_success([
@@ -71,10 +69,9 @@ add_action('wp_ajax_amelia_gpl_deactivate_key', function(){
         wp_send_json_error(['message' => 'Permisos insuficientes.']);
     }
     
-    delete_option('plugin_updater_api_key');
-    delete_option('plugin_updater_expiry');
     delete_option('amelia_gpl_api_key');
     delete_option('amelia_gpl_key_status');
+    delete_option('amelia_gpl_expiry');
     
     wp_send_json_success(['message' => 'API Key desactivada.']);
 });
