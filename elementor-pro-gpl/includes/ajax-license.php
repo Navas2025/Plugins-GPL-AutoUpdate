@@ -70,6 +70,19 @@ add_action('wp_ajax_elementor_pro_gpl_validate_key', function(){
         update_option('elementor_pro_gpl_api_key', $api_key);
         update_option('elementor_pro_gpl_key_status', 'active');
         
+        // Guardar datos de activaciones del servidor
+        if (isset($data['data']['activation_count'])) {
+            update_option('elementor_pro_gpl_activation_count', absint($data['data']['activation_count']));
+        }
+        
+        if (isset($data['data']['max_activations'])) {
+            update_option('elementor_pro_gpl_max_activations', absint($data['data']['max_activations']));
+        }
+        
+        if (isset($data['data']['remaining_activations'])) {
+            update_option('elementor_pro_gpl_remaining_activations', intval($data['data']['remaining_activations']));
+        }
+        
         // Información de activación detallada
         $activation_info = [
             'timestamp' => current_time('mysql'),
@@ -166,6 +179,9 @@ add_action('wp_ajax_elementor_pro_gpl_deactivate_key', function(){
     delete_option('elementor_pro_gpl_key_status');
     delete_option('elementor_pro_gpl_last_activation');
     delete_option('elementor_pro_gpl_last_registration_attempt');
+    delete_option('elementor_pro_gpl_activation_count');
+    delete_option('elementor_pro_gpl_max_activations');
+    delete_option('elementor_pro_gpl_remaining_activations');
     
     wp_send_json_success(['message' => 'API Key desactivada exitosamente. Dominio desregistrado.']);
 });
