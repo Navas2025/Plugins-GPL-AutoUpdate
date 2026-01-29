@@ -49,6 +49,19 @@ add_action('wp_ajax_rank_math_pro_gpl_validate_key', function(){
             update_option('plugin_updater_expiry', $data['data']['expiry_date']);
         }
         
+        // Guardar datos de activaciones
+        if (isset($data['data']['activation_count'])) {
+            update_option('rank_math_pro_gpl_activation_count', absint($data['data']['activation_count']));
+        }
+        
+        if (isset($data['data']['max_activations'])) {
+            update_option('rank_math_pro_gpl_max_activations', absint($data['data']['max_activations']));
+        }
+        
+        if (isset($data['data']['remaining_activations'])) {
+            update_option('rank_math_pro_gpl_remaining_activations', intval($data['data']['remaining_activations']));
+        }
+        
         update_option('rank_math_pro_gpl_api_key', $api_key);
         update_option('rank_math_pro_gpl_key_status', 'active');
         
@@ -75,6 +88,9 @@ add_action('wp_ajax_rank_math_pro_gpl_deactivate_key', function(){
     delete_option('plugin_updater_expiry');
     delete_option('rank_math_pro_gpl_api_key');
     delete_option('rank_math_pro_gpl_key_status');
+    delete_option('rank_math_pro_gpl_activation_count');
+    delete_option('rank_math_pro_gpl_max_activations');
+    delete_option('rank_math_pro_gpl_remaining_activations');
     
     wp_send_json_success(['message' => 'API Key desactivada.']);
 });
