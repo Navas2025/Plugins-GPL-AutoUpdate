@@ -25,10 +25,10 @@ $_config = (object) [
     "timeout" => strtotime('+12 hours', current_time('timestamp'))
 ];
 
-// Configuration de la réponse avec les features spécifiques et le tier Agency
+// Configuration of the response with specific features and Agency tier
 $_config->cloud_response = [
-    'success' => true, 
-    'license' => 'valid', 
+    'success' => true,
+    'license' => 'valid',
     'status' => 'valid',
     'expires' => '10.10.2030',
     'tier' => 'agency',
@@ -64,8 +64,8 @@ add_action('plugins_loaded', function () {
                 'body' => json_encode($_config->cloud_response)
             ];
         } elseif (strpos($url, "{$_config->api}/connect/v1/library/get_template_content") !== false) {
-            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['sslverify' => false, 'timeout' => 25]);
-            if (wp_remote_retrieve_response_code($response) == 200) {
+            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['timeout' => 25]);
+            if (wp_remote_retrieve_response_code($response) === 200) {
                 return $response;
             } else {
                 return $pre;
@@ -85,14 +85,14 @@ add_action('admin_enqueue_scripts', function () {
     }
 
     $css = '
-    .wrap.elementor-admin-page-license 
+    .wrap.elementor-admin-page-license
     .elementor-license-box h3 > span {
         position: relative !important;
         color: transparent !important;
         font-style: normal !important;
     }
 
-    .wrap.elementor-admin-page-license 
+    .wrap.elementor-admin-page-license
     .elementor-license-box h3 > span::after {
         content: "Active";
         position: absolute;
@@ -101,7 +101,7 @@ add_action('admin_enqueue_scripts', function () {
         color: #46b450 !important;
         font-weight: 600 !important;
         white-space: nowrap;
-		font-style: italic;
+        font-style: italic;
     }
     ';
 
