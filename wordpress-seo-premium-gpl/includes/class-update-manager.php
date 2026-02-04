@@ -21,7 +21,7 @@ class Yoast_SEO_GPL_Update_Manager {
             return $transient;
         }
         
-        $api_key = get_option('plugin_updater_api_key', '');
+        $api_key = get_option('yoast_seo_gpl_api_key', '');
         if (empty($api_key)) {
             return $transient;
         }
@@ -68,7 +68,7 @@ class Yoast_SEO_GPL_Update_Manager {
             return $false;
         }
         
-        $api_key = get_option('plugin_updater_api_key', '');
+        $api_key = get_option('yoast_seo_gpl_api_key', '');
         if (empty($api_key)) {
             return $false;
         }

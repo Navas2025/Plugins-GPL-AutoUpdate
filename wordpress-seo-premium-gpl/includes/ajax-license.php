@@ -39,7 +39,8 @@ add_action('wp_ajax_yoast_seo_gpl_validate_key', function(){
     $data = json_decode($body, true);
     
     if (isset($data['success']) && $data['success']) {
-        update_option('plugin_updater_api_key', $api_key);
+        update_option('yoast_seo_gpl_api_key', $api_key);
+        update_option('yoast_seo_gpl_key_status', 'active');
         
         if (isset($data['data']['expiry_date'])) {
             update_option('plugin_updater_expiry', $data['data']['expiry_date']);
@@ -57,9 +58,6 @@ add_action('wp_ajax_yoast_seo_gpl_validate_key', function(){
         if (isset($data['data']['remaining_activations'])) {
             update_option('yoast_seo_gpl_remaining_activations', $data['data']['remaining_activations']);
         }
-        
-        update_option('yoast_seo_gpl_api_key', $api_key);
-        update_option('yoast_seo_gpl_key_status', 'active');
         
         $success_message = isset($data['message']) ? $data['message'] : '¡API Key activada!';
         wp_send_json_success([
@@ -81,10 +79,9 @@ add_action('wp_ajax_yoast_seo_gpl_deactivate_key', function(){
         wp_send_json_error(['message' => 'Permisos insuficientes.']);
     }
     
-    delete_option('plugin_updater_api_key');
-    delete_option('plugin_updater_expiry');
     delete_option('yoast_seo_gpl_api_key');
     delete_option('yoast_seo_gpl_key_status');
+    delete_option('plugin_updater_expiry');
     delete_option('yoast_seo_gpl_activation_count');
     delete_option('yoast_seo_gpl_max_activations');
     delete_option('yoast_seo_gpl_remaining_activations');

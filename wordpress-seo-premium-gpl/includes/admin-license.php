@@ -40,9 +40,13 @@ function yoast_seo_gpl_license_page() {
                 <?php if ($max_activations > 0): ?>
                     <p><strong>Activaciones:</strong> <?php echo esc_html($activation_count); ?> / <?php echo esc_html($max_activations); ?></p>
                     
-                    <?php if ($remaining_activations <= 0): ?>
+                    <?php if ($remaining_activations <= 3 && $remaining_activations > 0): ?>
                         <div class="notice notice-warning inline">
                             <p>⚠️ <strong>Le quedan <?php echo esc_html($remaining_activations); ?> activaciones.</strong></p>
+                        </div>
+                    <?php elseif ($remaining_activations <= 0): ?>
+                        <div class="notice notice-warning inline">
+                            <p>⚠️ <strong>No le quedan activaciones disponibles.</strong></p>
                         </div>
                     <?php endif; ?>
                 <?php else: ?>
@@ -81,7 +85,7 @@ function yoast_seo_gpl_license_page() {
                                     required
                                 >
                                 <p class="description">
-                                    Obtén tu API Key desde <a href="https://actualizarplugins.online" target="_blank">actualizarplugins.online</a>
+                                    Obtén tu API Key desde <a href="https://actualizarplugins.online" target="_blank" rel="noopener noreferrer">actualizarplugins.online</a>
                                 </p>
                             </td>
                         </tr>
