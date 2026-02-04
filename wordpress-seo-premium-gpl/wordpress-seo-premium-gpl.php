@@ -9,7 +9,7 @@
  * @license   http://www.gnu.org/licenses/gpl-3.0.html GNU General Public License, version 3 or higher
  *
  * @wordpress-plugin
- * Plugin Name: Yoast SEO Premium
+ * Plugin Name: Yoast SEO Premium GPL
  * Version:     26.9
  * Plugin URI:  https://yoa.st/2jc
  * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more.
@@ -40,12 +40,15 @@
  */
 
 use Yoast\WP\SEO\Premium\Addon_Installer;
+
+// Limpiar transients si están vacíos
 $site_information = get_transient( 'wpseo_site_information' );
 if ( isset( $site_information->subscriptions ) && ( count( $site_information->subscriptions ) == 0 ) ) {
 delete_transient( 'wpseo_site_information' );
 delete_transient( 'wpseo_site_information_quick' );
 }
 
+// Interceptar peticiones a my.yoast.com
 add_filter( 'pre_http_request', function( $pre, $parsed_args, $url ){
 $site_information = (object) [
 'url' => NULL,
@@ -77,13 +80,15 @@ $site_information->subscriptions[] = (object) [
 
 if ( strpos( $url, 'https://my.yoast.com/api/sites/current' ) !== false ) {
 return [
-'response' => [ 'code' => 200, 'message' => 'ОК' ],
+'response' => [ 'code' => 200, 'message' => 'OK' ],
 'body' => json_encode( $site_information )
 ];
 } else {
 return $pre;
 }
 }, 10, 3 );
+
+// Definir constantes de Yoast SEO Premium
 if ( ! defined( 'WPSEO_PREMIUM_FILE' ) ) {
 	define( 'WPSEO_PREMIUM_FILE', __FILE__ );
 }
@@ -121,3 +126,25 @@ if ( ! wp_installing() ) {
 }
 
 register_activation_hook( WPSEO_PREMIUM_FILE, [ 'WPSEO_Premium', 'install' ] );
+
+// ========================================
+// SISTEMA GPL DE ACTIVACIONES 1/1
+// ========================================
+
+// Definir servidor de actualizaciones GPL
+if (!defined('YOAST_SEO_GPL_UPDATE_SERVER')) {
+    define('YOAST_SEO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
+}
+
+// Cargar sistema de licencias GPL
+if (file_exists(WPSEO_PREMIUM_PATH . 'includes/admin-license.php')) {
+    require_once WPSEO_PREMIUM_PATH . 'includes/admin-license.php';
+}
+
+if (file_exists(WPSEO_PREMIUM_PATH . 'includes/ajax-license.php')) {
+    require_once WPSEO_PREMIUM_PATH . 'includes/ajax-license.php';
+}
+
+if (file_exists(WPSEO_PREMIUM_PATH . 'includes/class-update-manager.php')) {
+    require_once WPSEO_PREMIUM_PATH . 'includes/class-update-manager.php';
+}
