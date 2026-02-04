@@ -43,7 +43,7 @@ add_action('wp_ajax_yoast_seo_gpl_validate_key', function(){
         update_option('yoast_seo_gpl_key_status', 'active');
         
         if (isset($data['data']['expiry_date'])) {
-            update_option('plugin_updater_expiry', $data['data']['expiry_date']);
+            update_option('yoast_seo_gpl_expiry', $data['data']['expiry_date']);
         }
         
         // Guardar datos de activaciones
@@ -81,7 +81,7 @@ add_action('wp_ajax_yoast_seo_gpl_deactivate_key', function(){
     
     delete_option('yoast_seo_gpl_api_key');
     delete_option('yoast_seo_gpl_key_status');
-    delete_option('plugin_updater_expiry');
+    delete_option('yoast_seo_gpl_expiry');
     delete_option('yoast_seo_gpl_activation_count');
     delete_option('yoast_seo_gpl_max_activations');
     delete_option('yoast_seo_gpl_remaining_activations');

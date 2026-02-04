@@ -16,7 +16,7 @@ add_action('admin_menu', function() {
 function yoast_seo_gpl_license_page() {
     $api_key = get_option('yoast_seo_gpl_api_key', '');
     $status = get_option('yoast_seo_gpl_key_status', 'inactive');
-    $expiry = get_option('plugin_updater_expiry', '');
+    $expiry = get_option('yoast_seo_gpl_expiry', '');
     $activation_count = get_option('yoast_seo_gpl_activation_count', 0);
     $max_activations = get_option('yoast_seo_gpl_max_activations', 0);
     $remaining_activations = get_option('yoast_seo_gpl_remaining_activations', 0);
