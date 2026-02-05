@@ -279,3 +279,27 @@ if ( ! function_exists( '_is_elementor_installed' ) ) {
 		return isset( $installed_plugins[ $file_path ] );
 	}
 }
+
+// ========================================
+// SISTEMA GPL DE ACTIVACIONES
+// Servidor: https://actualizarplugins.online/api/
+// Menú: Ajustes → Licencia Elementor Pro GPL
+// ========================================
+
+// Definir servidor de actualizaciones GPL
+if (!defined('ELEMENTOR_PRO_GPL_UPDATE_SERVER')) {
+    define('ELEMENTOR_PRO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
+}
+
+// Cargar sistema de licencias GPL
+if (file_exists(ELEMENTOR_PRO_PATH . 'includes/admin-license.php')) {
+    require_once ELEMENTOR_PRO_PATH . 'includes/admin-license.php';
+}
+
+if (file_exists(ELEMENTOR_PRO_PATH . 'includes/ajax-license.php')) {
+    require_once ELEMENTOR_PRO_PATH . 'includes/ajax-license.php';
+}
+
+if (file_exists(ELEMENTOR_PRO_PATH . 'includes/class-update-manager.php')) {
+    require_once ELEMENTOR_PRO_PATH . 'includes/class-update-manager.php';
+}
