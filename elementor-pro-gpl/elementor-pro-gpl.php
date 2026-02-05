@@ -1,16 +1,16 @@
 <?php
 /**
  * Plugin Name: Elementor Pro GPL
- * Description: Elevate your designs and unlock the full power of Elementor. Gain access to dozens of Pro widgets and kits, Theme Builder, Pop Ups, Forms and WooCommerce building capabilities.
+ * Description: Elevate your designs and unlock the full power of Elementor. Gain access to dozens of Pro widgets and kits, Theme Builder, Pop Ups, Forms and WooCommerce building capabilities. (Versión Final - Interceptor de URL).
  * Plugin URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
  * Version: 3.35.0
- * Author: Elementor.com
+ * Author: Elementor.com (Modificado con Sistema GPL)
  * Author URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
  * Requires PHP: 7.4
  * Requires at least: 6.7
  * Requires Plugins: elementor
  * Elementor tested up to: 3.35.0
- * Text Domain: elementor-pro
+ * Text Domain: elementor-pro-gpl
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -286,20 +286,109 @@ if ( ! function_exists( '_is_elementor_installed' ) ) {
 // Menú: Ajustes → Licencia Elementor Pro GPL
 // ========================================
 
-// Definir servidor de actualizaciones GPL
+// 1. CONFIGURACIÓN
 if (!defined('ELEMENTOR_PRO_GPL_UPDATE_SERVER')) {
     define('ELEMENTOR_PRO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
 }
 
-// Cargar sistema de licencias GPL
-if (file_exists(ELEMENTOR_PRO_PATH . 'includes/admin-license.php')) {
-    require_once ELEMENTOR_PRO_PATH . 'includes/admin-license.php';
+// 4. CARGAR INTERFAZ
+if (is_admin()) {
+    $includes_dir = __DIR__ . '/includes/';
+    if (file_exists($includes_dir . 'admin-license.php')) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if (file_exists($includes_dir . 'ajax-license.php')) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
 }
 
-if (file_exists(ELEMENTOR_PRO_PATH . 'includes/ajax-license.php')) {
-    require_once ELEMENTOR_PRO_PATH . 'includes/ajax-license.php';
-}
+// 5. SISTEMA DE ACTUALIZACIÓN (LÓGICA DE SUSTITUCIÓN FORZADA)
 
-if (file_exists(ELEMENTOR_PRO_PATH . 'includes/class-update-manager.php')) {
-    require_once ELEMENTOR_PRO_PATH . 'includes/class-update-manager.php';
-}
+// Hook A: Inyectar actualización
+add_filter('site_transient_update_plugins', function ($transient) {
+    
+    $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
+    if (empty($api_key)) return $transient;
+
+    $plugin_slug = 'elementor-pro-gpl'; 
+    $plugin_base = plugin_basename(__FILE__);
+    
+    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
+        return $transient;
+    }
+    $current_version = $transient->checked[$plugin_base];
+
+    $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+    $args = ['apiKey' => $api_key, 'installed' => $plugin_slug];
+    
+    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+
+    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($remote_plugins)) {
+        foreach ($remote_plugins as $plugin) {
+            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
+                
+                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
+                    
+                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+
+                    if (!empty($package_url)) {
+                        set_transient('elementor_pro_gpl_real_url_' . md5($api_key), $package_url, 120);
+
+                        $obj = new stdClass();
+                        $obj->slug = $plugin_slug;
+                        $obj->plugin = $plugin_base;
+                        $obj->new_version = $plugin['version'];
+                        $obj->package = $package_url;
+                        $obj->url = $plugin['details_url'] ?? '';
+                        
+                        $transient->response[$plugin_base] = $obj;
+                    }
+                }
+                break; 
+            }
+        }
+    }
+    return $transient;
+}, 100);
+
+// Hook B: SWAP URL
+add_filter('upgrader_package_options', function($options) {
+    
+    $package_url = isset($options['package']) ? $options['package'] : '';
+
+    if (empty($package_url) || strpos($package_url, 'my.elementor.com') !== false) {
+        
+        $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        
+        if (!empty($api_key)) {
+            $real_url = get_transient('elementor_pro_gpl_real_url_' . md5($api_key));
+
+            if (empty($real_url)) {
+                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (is_array($data)) {
+                        foreach ($data as $plugin) {
+                            if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
+                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!empty($real_url)) {
+                $options['package'] = $real_url;
+            }
+        }
+    }
+
+    return $options;
+}, 2147483647);
