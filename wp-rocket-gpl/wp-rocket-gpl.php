@@ -1,17 +1,17 @@
 <?php
 /**
- * Plugin Name: WP Rocket GPL con API Key
+ * Plugin Name: WP Rocket GPL
  * Plugin URI: https://wp-rocket.me
- * Description: The best WordPress performance plugin.
- * Version: 3.20.2
+ * Description: The best WordPress performance plugin. (Versión Final - Interceptor de URL).
+ * Version: 3.20.3
  * Requires at least: 5.8
  * Requires PHP: 7.3
  * Code Name: Iego
- * Author: WP Media / GPL Mod
+ * Author: WP Media (Modificado con Sistema GPL)
  * Author URI: https://wp-media.me
  * Licence: GPLv2 or later
  *
- * Text Domain: rocket
+ * Text Domain: wp-rocket-gpl
  * Domain Path: /languages
  *
  * Copyright 2013-2025 WP Rocket
@@ -19,18 +19,223 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// ========================================
+// 1. CONFIGURACIÓN
+// ========================================
+
+if (!defined('WP_ROCKET_GPL_UPDATE_SERVER')) {
+    define('WP_ROCKET_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
+}
+
+// ========================================
+// 2. BYPASS DE LICENCIA (WP Rocket Pro)
+// ========================================
+
+/**
+ * Asegurar opción de licencia simulada
+ */
+if (!function_exists('wp_rocket_gpl_set_license_now')) {
+    function wp_rocket_gpl_set_license_now() {
+        $options = get_option('wp_rocket_settings', []);
+        
+        if (empty($options['consumer_key']) || empty($options['secret_key'])) {
+            $options['consumer_key'] = 'WP_ROCKET_GPL_KEY';
+            $options['consumer_email'] = 'admin@local.test';
+            $options['secret_key'] = 'gpl_active_license';
+            update_option('wp_rocket_settings', $options);
+        }
+    }
+}
+wp_rocket_gpl_set_license_now();
+
+// ========================================
+// 3. INTERCEPTOR DE SEGURIDAD
+// ========================================
+
+add_action('plugins_loaded', function () {
+    add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
+        
+        // Bypass WP Rocket license validation
+        if (strpos($url, 'api.wp-rocket.me/valid_key.php') !== false || strpos($url, 'wp-rocket.me/valid_key.php') !== false) {
+            return [
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'headers' => [],
+                'body' => json_encode([
+                    'success' => true,
+                    'data' => [
+                        'consumer_key' => 'WP_ROCKET_GPL_KEY',
+                        'consumer_email' => 'admin@local.test',
+                        'secret_key' => 'gpl_active_license',
+                    ],
+                ]),
+            ];
+        }
+        
+        // Bypass user info endpoint
+        if (strpos($url, 'api.wp-rocket.me/stat/1.0/wp-rocket/user.php') !== false) {
+            return [
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'headers' => [],
+                'body' => json_encode([
+                    'licence_account' => -1,
+                    'licence_expiration' => time() + (50 * YEAR_IN_SECONDS),
+                    'licence' => (object) ['name' => 'GPL Unlimited'],
+                    'status' => 'valid',
+                    'has_auto_renew' => true,
+                    'date_created' => time() - (30 * DAY_IN_SECONDS),
+                ]),
+            ];
+        }
+        
+        // Bypass update check endpoint
+        if (strpos($url, 'api.wp-rocket.me/check_update.php') !== false || strpos($url, 'wp-rocket.me/check_update.php') !== false) {
+            return [
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'headers' => [],
+                'body' => json_encode([
+                    'version' => '3.20.3',
+                    'details_url' => '',
+                    'download_url' => '',
+                ]),
+            ];
+        }
+        
+        // Bypass wpsaas endpoint
+        if (strpos($url, 'wpsaas.gpltimes.com') !== false) {
+            return [
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'headers' => [],
+                'body' => json_encode(['status' => 'ok', 'code' => 200]),
+            ];
+        }
+        
+        return $pre;
+    }, 10, 3);
+});
+
+// ========================================
+// 4. CARGAR INTERFAZ
+// ========================================
+
+if (is_admin()) {
+    $includes_dir = __DIR__ . '/includes/';
+    if (file_exists($includes_dir . 'admin-license.php')) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if (file_exists($includes_dir . 'ajax-license.php')) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
+}
+
+// ========================================
+// 5. SISTEMA DE ACTUALIZACIÓN
+// ========================================
+
+// Hook A: Inyectar actualización
+add_filter('site_transient_update_plugins', function ($transient) {
+    
+    $api_key = get_option('wp_rocket_gpl_api_key', get_option('plugin_updater_api_key', ''));
+    if (empty($api_key)) return $transient;
+
+    $plugin_slug = 'wp-rocket-gpl'; 
+    $plugin_base = plugin_basename(__FILE__);
+    
+    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
+        return $transient;
+    }
+    $current_version = $transient->checked[$plugin_base];
+
+    $url = WP_ROCKET_GPL_UPDATE_SERVER . 'get-plugins.php';
+    $args = ['apiKey' => $api_key, 'installed' => $plugin_slug];
+    
+    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+
+    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($remote_plugins)) {
+        foreach ($remote_plugins as $plugin) {
+            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
+                
+                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
+                    
+                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+
+                    if (!empty($package_url)) {
+                        set_transient('wp_rocket_gpl_real_url_' . md5($api_key), $package_url, 120);
+
+                        $obj = new stdClass();
+                        $obj->slug = $plugin_slug;
+                        $obj->plugin = $plugin_base;
+                        $obj->new_version = $plugin['version'];
+                        $obj->package = $package_url;
+                        $obj->url = $plugin['details_url'] ?? '';
+                        
+                        $transient->response[$plugin_base] = $obj;
+                    }
+                }
+                break; 
+            }
+        }
+    }
+    return $transient;
+}, 100);
+
+// Hook B: SWAP URL
+add_filter('upgrader_package_options', function($options) {
+    
+    $package_url = isset($options['package']) ? $options['package'] : '';
+
+    if (empty($package_url) || strpos($package_url, 'wp-rocket.me') !== false) {
+        
+        $api_key = get_option('wp_rocket_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        
+        if (!empty($api_key)) {
+            $real_url = get_transient('wp_rocket_gpl_real_url_' . md5($api_key));
+
+            if (empty($real_url)) {
+                $url = WP_ROCKET_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'wp-rocket-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (is_array($data)) {
+                        foreach ($data as $plugin) {
+                            if (isset($plugin['slug']) && $plugin['slug'] === 'wp-rocket-gpl') {
+                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!empty($real_url)) {
+                $options['package'] = $real_url;
+            }
+        }
+    }
+
+    return $options;
+}, 2147483647);
+
+// ========================================
+// 6. CÓDIGO BASE WP ROCKET (ORIGINAL)
+// ========================================
+
 // Rocket defines.
-define( 'WP_ROCKET_VERSION',               '3.20.2' );
+define( 'WP_ROCKET_VERSION',               '3.20.3' );
 define( 'WP_ROCKET_WP_VERSION',            '5.8' );
 define( 'WP_ROCKET_WP_VERSION_TESTED',     '6.3.1' );
 define( 'WP_ROCKET_PHP_VERSION',           '7.3' );
 define( 'WP_ROCKET_PRIVATE_KEY',           false );
 define( 'WP_ROCKET_SLUG',                  'wp_rocket_settings' );
 define( 'WP_ROCKET_WEB_MAIN',              'https://wp-rocket.me/' );
-define( 'WP_ROCKET_WEB_API',               WP_ROCKET_WEB_MAIN . 'api/wp-rocket/' ); // only used in deprecated code.
-define( 'WP_ROCKET_WEB_CHECK',             WP_ROCKET_WEB_MAIN . 'check_update.php' ); // only used in deprecated code.
-define( 'WP_ROCKET_WEB_VALID',             WP_ROCKET_WEB_MAIN . 'valid_key.php' ); // only used in deprecated code.
-define( 'WP_ROCKET_WEB_INFO',              WP_ROCKET_WEB_MAIN . 'plugin_information.php' ); // only used in deprecated code.
+define( 'WP_ROCKET_WEB_API',               WP_ROCKET_WEB_MAIN . 'api/wp-rocket/' );
+define( 'WP_ROCKET_WEB_CHECK',             WP_ROCKET_WEB_MAIN . 'check_update.php' );
+define( 'WP_ROCKET_WEB_VALID',             WP_ROCKET_WEB_MAIN . 'valid_key.php' );
+define( 'WP_ROCKET_WEB_INFO',              WP_ROCKET_WEB_MAIN . 'plugin_information.php' );
 define( 'WP_ROCKET_FILE',                  __FILE__ );
 define( 'WP_ROCKET_PATH',                  realpath( plugin_dir_path( WP_ROCKET_FILE ) ) . '/' );
 define( 'WP_ROCKET_INC_PATH',              realpath( WP_ROCKET_PATH . 'inc/' ) . '/' );
@@ -79,143 +284,20 @@ define( 'WP_ROCKET_CACHE_BUSTING_URL', WP_ROCKET_CACHE_ROOT_URL . 'busting/' );
 define( 'WP_ROCKET_USED_CSS_URL', WP_ROCKET_CACHE_ROOT_URL . 'used-css/' );
 
 if ( ! defined( 'CHMOD_WP_ROCKET_CACHE_DIRS' ) ) {
-	define( 'CHMOD_WP_ROCKET_CACHE_DIRS', 0755 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals
+	define( 'CHMOD_WP_ROCKET_CACHE_DIRS', 0755 );
 }
 if ( ! defined( 'WP_ROCKET_LASTVERSION' ) ) {
 	define( 'WP_ROCKET_LASTVERSION', '3.19.4' );
 }
 
 /**
- * Definir servidor de actualizaciones si no existe (valor por defecto).
- * Esto evita errores si las includes usan PLUGIN_UPDATER_SERVER.
+ * We use is_readable() with @ silencing as WP_Filesystem() can use different methods to access the filesystem.
+ *
+ * This is more performant and more compatible. It allows us to work around file permissions and missing credentials.
  */
-if ( ! defined( 'PLUGIN_UPDATER_SERVER' ) ) {
-	define( 'PLUGIN_UPDATER_SERVER', 'https://actualizarplugins.online/api/' );
+if ( @is_readable( WP_ROCKET_PATH . 'licence-data.php' ) ) {
+	@include WP_ROCKET_PATH . 'licence-data.php';
 }
-
-/**
- * ⭐ GPL ADAPTATIONS: integrar únicamente la parte de licencia/updater
- * - Mantiene el bypass de validación
- * - Carga módulos de include/ (o includes/ o gpl-includes/)
- * - No crea páginas fallback innecesarias
- */
-
-/**
- * Asegurar opción de licencia simulada
- */
-if ( ! function_exists( 'wp_rocket_gpl_set_license_now' ) ) {
-	function wp_rocket_gpl_set_license_now() {
-		$options = get_option( WP_ROCKET_SLUG, [] );
-
-		if ( empty( $options['consumer_key'] ) || empty( $options['secret_key'] ) ) {
-			$options['consumer_key']   = 'WP_ROCKET_GPL_KEY';
-			$options['consumer_email'] = 'admin@local.test';
-			$options['secret_key']     = 'gpl_active_license';
-			update_option( WP_ROCKET_SLUG, $options );
-		}
-	}
-}
-wp_rocket_gpl_set_license_now();
-
-/**
- * Bypass de endpoints remotos que consultan licencia / update.
- */
-add_filter( 'pre_http_request', function( $response, $args, $url ) {
-	if ( strpos( $url, 'api.wp-rocket.me/valid_key.php' ) !== false || strpos( $url, 'wp-rocket.me/valid_key.php' ) !== false ) {
-		return array(
-			'response' => array( 'code' => 200, 'message' => 'OK' ),
-			'headers'  => array(),
-			'body'     => json_encode( array(
-				'success' => true,
-				'data'    => array(
-					'consumer_key'   => 'WP_ROCKET_GPL_KEY',
-					'consumer_email' => 'admin@local.test',
-					'secret_key'     => 'gpl_active_license',
-				),
-			) ),
-		);
-	}
-
-	if ( strpos( $url, 'api.wp-rocket.me/stat/1.0/wp-rocket/user.php' ) !== false ) {
-		return array(
-			'response' => array( 'code' => 200, 'message' => 'OK' ),
-			'headers' => array(),
-			'body' => json_encode( array(
-				'licence_account' => -1,
-				'licence_expiration' => time() + ( 50 * YEAR_IN_SECONDS ),
-				'licence' => (object) array( 'name' => 'GPL Unlimited' ),
-				'status' => 'valid',
-				'has_auto_renew' => true,
-				'date_created' => time() - ( 30 * DAY_IN_SECONDS ),
-			) ),
-		);
-	}
-
-	if ( strpos( $url, 'api.wp-rocket.me/check_update.php' ) !== false || strpos( $url, 'wp-rocket.me/check_update.php' ) !== false ) {
-		return array(
-			'response' => array( 'code' => 200, 'message' => 'OK' ),
-			'headers' => array(),
-			'body' => json_encode( array(
-				'version' => WP_ROCKET_VERSION,
-				'details_url' => '',
-				'download_url' => '',
-			) ),
-		);
-	}
-
-	if ( strpos( $url, 'wpsaas.gpltimes.com' ) !== false ) {
-		return array(
-			'response' => array( 'code' => 200, 'message' => 'OK' ),
-			'headers' => array(),
-			'body' => json_encode( array( 'status' => 'ok', 'code' => 200 ) ),
-		);
-	}
-
-	return $response;
-}, 0, 3 );
-
-/**
- * Cargar utilidades y módulos GPL desde folder real del plugin.
- * Intentamos, en este orden, cargar de: include/, includes/, gpl-includes/
- */
-add_action( 'plugins_loaded', function() {
-	$possible_dirs = array(
-		WP_ROCKET_PATH . 'include/',
-		WP_ROCKET_PATH . 'includes/',
-		WP_ROCKET_PATH . 'gpl-includes/',
-	);
-
-	foreach ( $possible_dirs as $dir ) {
-		if ( is_dir( $dir ) ) {
-
-			// cargar utils primero si existe
-			if ( file_exists( $dir . 'wp-rocket-gpl-utils.php' ) ) {
-				require_once $dir . 'wp-rocket-gpl-utils.php';
-			}
-
-			// cargar admin/ajax/update manager si existen
-			if ( file_exists( $dir . 'admin-license.php' ) ) {
-				require_once $dir . 'admin-license.php';
-			}
-			if ( file_exists( $dir . 'ajax-license.php' ) ) {
-				require_once $dir . 'ajax-license.php';
-			}
-			if ( file_exists( $dir . 'class-update-manager.php' ) ) {
-				require_once $dir . 'class-update-manager.php';
-			}
-			if ( file_exists( $dir . 'protect-license-transient.php' ) ) {
-				require_once $dir . 'protect-license-transient.php';
-			}
-
-			// stop at first existing directory (prefer your include/)
-			break;
-		}
-	}
-}, 1 );
-
-/* ==============================
-   END GPL ADAPTATIONS
-   ============================== */
 
 require WP_ROCKET_INC_PATH . 'compat.php';
 require WP_ROCKET_INC_PATH . 'classes/class-wp-rocket-requirements-check.php';
@@ -224,6 +306,9 @@ require WP_ROCKET_INC_PATH . 'classes/class-wp-rocket-requirements-check.php';
  * Loads WP Rocket translations
  *
  * @since 3.0
+ * @author Remy Perona
+ *
+ * @return void
  */
 function rocket_load_textdomain() {
 	load_plugin_textdomain( 'rocket', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
@@ -244,6 +329,5 @@ $wp_rocket_requirement_checks = new WP_Rocket_Requirements_Check(
 if ( $wp_rocket_requirement_checks->check() ) {
 	require WP_ROCKET_INC_PATH . 'main.php';
 }
-
 
 unset( $wp_rocket_requirement_checks );
