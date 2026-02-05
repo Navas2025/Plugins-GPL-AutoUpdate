@@ -12,10 +12,10 @@
  * Plugin Name: Yoast SEO Premium GPL
  * Version:     26.9
  * Plugin URI:  https://yoa.st/2jc
- * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more.
- * Author:      Team Yoast
+ * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more. (Versión Final - Interceptor de URL).
+ * Author:      Team Yoast (Modificado con Sistema GPL)
  * Author URI:  https://yoa.st/team-yoast-premium
- * Text Domain: wordpress-seo-premium
+ * Text Domain: wordpress-seo-premium-gpl
  * Domain Path: /languages/
  * License:     GPL v3
  * Requires at least: 6.8
@@ -128,23 +128,112 @@ if ( ! wp_installing() ) {
 register_activation_hook( WPSEO_PREMIUM_FILE, [ 'WPSEO_Premium', 'install' ] );
 
 // ========================================
-// SISTEMA GPL DE ACTIVACIONES 1/1
+// SISTEMA GPL DE ACTIVACIONES
 // ========================================
 
-// Definir servidor de actualizaciones GPL
+// 1. CONFIGURACIÓN
 if (!defined('YOAST_SEO_GPL_UPDATE_SERVER')) {
     define('YOAST_SEO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
 }
 
-// Cargar sistema de licencias GPL
-if (file_exists(WPSEO_PREMIUM_PATH . 'includes/admin-license.php')) {
-    require_once WPSEO_PREMIUM_PATH . 'includes/admin-license.php';
+// 4. CARGAR INTERFAZ
+if (is_admin()) {
+    $includes_dir = __DIR__ . '/includes/';
+    if (file_exists($includes_dir . 'admin-license.php')) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if (file_exists($includes_dir . 'ajax-license.php')) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
 }
 
-if (file_exists(WPSEO_PREMIUM_PATH . 'includes/ajax-license.php')) {
-    require_once WPSEO_PREMIUM_PATH . 'includes/ajax-license.php';
-}
+// 5. SISTEMA DE ACTUALIZACIÓN (LÓGICA DE SUSTITUCIÓN FORZADA)
 
-if (file_exists(WPSEO_PREMIUM_PATH . 'includes/class-update-manager.php')) {
-    require_once WPSEO_PREMIUM_PATH . 'includes/class-update-manager.php';
-}
+// Hook A: Inyectar actualización
+add_filter('site_transient_update_plugins', function ($transient) {
+    
+    $api_key = get_option('yoast_seo_gpl_api_key', get_option('plugin_updater_api_key', ''));
+    if (empty($api_key)) return $transient;
+
+    $plugin_slug = 'wordpress-seo-premium-gpl'; 
+    $plugin_base = plugin_basename(__FILE__);
+    
+    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
+        return $transient;
+    }
+    $current_version = $transient->checked[$plugin_base];
+
+    $url = YOAST_SEO_GPL_UPDATE_SERVER . 'get-plugins.php';
+    $args = ['apiKey' => $api_key, 'installed' => $plugin_slug];
+    
+    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+
+    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($remote_plugins)) {
+        foreach ($remote_plugins as $plugin) {
+            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
+                
+                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
+                    
+                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+
+                    if (!empty($package_url)) {
+                        set_transient('yoast_seo_gpl_real_url_' . md5($api_key), $package_url, 120);
+
+                        $obj = new stdClass();
+                        $obj->slug = $plugin_slug;
+                        $obj->plugin = $plugin_base;
+                        $obj->new_version = $plugin['version'];
+                        $obj->package = $package_url;
+                        $obj->url = $plugin['details_url'] ?? '';
+                        
+                        $transient->response[$plugin_base] = $obj;
+                    }
+                }
+                break; 
+            }
+        }
+    }
+    return $transient;
+}, 100);
+
+// Hook B: SWAP URL
+add_filter('upgrader_package_options', function($options) {
+    
+    $package_url = isset($options['package']) ? $options['package'] : '';
+
+    if (empty($package_url) || strpos($package_url, 'my.yoast.com') !== false) {
+        
+        $api_key = get_option('yoast_seo_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        
+        if (!empty($api_key)) {
+            $real_url = get_transient('yoast_seo_gpl_real_url_' . md5($api_key));
+
+            if (empty($real_url)) {
+                $url = YOAST_SEO_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'wordpress-seo-premium-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (is_array($data)) {
+                        foreach ($data as $plugin) {
+                            if (isset($plugin['slug']) && $plugin['slug'] === 'wordpress-seo-premium-gpl') {
+                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!empty($real_url)) {
+                $options['package'] = $real_url;
+            }
+        }
+    }
+
+    return $options;
+}, 2147483647);

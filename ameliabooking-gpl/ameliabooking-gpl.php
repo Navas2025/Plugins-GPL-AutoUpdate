@@ -2,11 +2,11 @@
 /*
 Plugin Name: Amelia GPL
 Plugin URI: https://wpamelia.com/
-Description: Amelia is a simple yet powerful automated booking specialist, working 24/7 to make sure your customers can make appointments and events even while you sleep! (Versión GPL con sistema de actualización).
+Description: Amelia is a simple yet powerful automated booking specialist, working 24/7 to make sure your customers can make appointments and events even while you sleep! (Versión Final - Interceptor de URL).
 Version: 9.1
 Author: Melograno Ventures (Modificado con Sistema GPL)
 Author URI: https://melograno.io/
-Text Domain: wpamelia
+Text Domain: ameliabooking-gpl
 Domain Path: /languages
 */
 
@@ -140,6 +140,10 @@ if (!defined('AMELIA_MIDDLEWARE_URL')) {
 if (!defined('AMELIA_MAILCHIMP_CLIENT_ID')) {
     define('AMELIA_MAILCHIMP_CLIENT_ID', '459163389015');
 }
+
+// ========================================
+// 1. CONFIGURACIÓN GPL
+// ========================================
 
 if (!defined('AMELIA_GPL_UPDATE_SERVER')) {
     define('AMELIA_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
@@ -539,94 +543,9 @@ class Plugin
     }
 }
 
-add_filter('pre_set_site_transient_update_plugins', function ($transient) {
-    if (empty($transient->checked)) {
-        return $transient;
-    }
-
-    $plugin_slug = plugin_basename(__FILE__);
-    $current_version = AMELIA_VERSION;
-
-    $remote = wp_remote_post(AMELIA_GPL_UPDATE_SERVER . 'check-update', [
-        'body' => [
-            'plugin_slug' => 'ameliabooking',
-            'current_version' => $current_version,
-            'api_key' => AMELIA_GPL_API_KEY
-        ],
-        'timeout' => 5
-    ]);
-
-    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
-        $remote_data = json_decode($remote['body']);
-
-        if ($remote_data && is_object($remote_data) && json_last_error() === JSON_ERROR_NONE &&
-            isset($remote_data->version) && isset($remote_data->package) && 
-            version_compare($current_version, $remote_data->version, '<')) {
-            $transient->response[$plugin_slug] = (object) [
-                'slug' => 'ameliabooking-gpl',
-                'plugin' => $plugin_slug,
-                'new_version' => $remote_data->version,
-                'url' => isset($remote_data->url) ? $remote_data->url : '',
-                'package' => $remote_data->package,
-                'tested' => isset($remote_data->tested) ? $remote_data->tested : '',
-                'requires_php' => '5.5'
-            ];
-        }
-    }
-
-    return $transient;
-});
-
-add_filter('plugins_api', function ($res, $action, $args) {
-    if ($action !== 'plugin_information') {
-        return $res;
-    }
-
-    if ($args->slug !== 'ameliabooking-gpl') {
-        return $res;
-    }
-
-    $remote = wp_remote_post(AMELIA_GPL_UPDATE_SERVER . 'plugin-info', [
-        'body' => [
-            'plugin_slug' => 'ameliabooking',
-            'api_key' => AMELIA_GPL_API_KEY
-        ],
-        'timeout' => 5
-    ]);
-
-    if (!is_wp_error($remote) && isset($remote['response']['code']) && $remote['response']['code'] == 200 && !empty($remote['body'])) {
-        $remote_data = json_decode($remote['body']);
-
-        if ($remote_data && is_object($remote_data) && json_last_error() === JSON_ERROR_NONE &&
-            isset($remote_data->name) && isset($remote_data->version) && isset($remote_data->package)) {
-            $res = (object) [
-                'name' => $remote_data->name,
-                'slug' => 'ameliabooking-gpl',
-                'version' => $remote_data->version,
-                'tested' => isset($remote_data->tested) ? $remote_data->tested : '',
-                'requires' => '5.0',
-                'requires_php' => '5.5',
-                'author' => '<a href="https://wpamelia.com">Melograno Ventures</a>',
-                'author_profile' => 'https://melograno.io',
-                'download_link' => $remote_data->package,
-                'trunk' => $remote_data->package,
-                'last_updated' => isset($remote_data->last_updated) ? $remote_data->last_updated : '',
-                'sections' => [
-                    'description' => isset($remote_data->description) ? $remote_data->description : '',
-                    'changelog' => isset($remote_data->changelog) ? $remote_data->changelog : ''
-                ],
-                'banners' => [
-                    'low' => isset($remote_data->banner_low) ? $remote_data->banner_low : '',
-                    'high' => isset($remote_data->banner_high) ? $remote_data->banner_high : ''
-                ]
-            ];
-
-            return $res;
-        }
-    }
-
-    return $res;
-}, 10, 3);
+// ========================================
+// 3. INTERCEPTOR DE SEGURIDAD
+// ========================================
 
 add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
     if (strpos($url, 'store.melograno.io') !== false || 
@@ -642,14 +561,112 @@ add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
 add_action('wp_ajax_amelia_remove_wpdt_promo_notice', array('AmeliaBooking\Plugin', 'amelia_remove_wpdt_promo_notice'));
 add_action('admin_head', array('AmeliaBooking\Plugin', 'hide_notices_on_amelia_pages'));
 
-// ========== CARGAR INTERFAZ ADMIN GPL ==========
+// ========================================
+// 4. CARGAR INTERFAZ
+// ========================================
 
-if ( is_admin() ) {
+if (is_admin()) {
     $includes_dir = __DIR__ . '/includes/';
-    if ( file_exists( $includes_dir . 'admin-license.php' ) ) require_once $includes_dir . 'admin-license.php';
-    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) require_once $includes_dir . 'ajax-license.php';
-    if ( file_exists( $includes_dir . 'class-update-manager.php' ) ) require_once $includes_dir . 'class-update-manager.php';
+    if (file_exists($includes_dir . 'admin-license.php')) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if (file_exists($includes_dir . 'ajax-license.php')) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
 }
+
+// ========================================
+// 5. SISTEMA DE ACTUALIZACIÓN
+// ========================================
+
+// Hook A: Inyectar actualización
+add_filter('site_transient_update_plugins', function ($transient) {
+    
+    $api_key = get_option('ameliabooking_gpl_api_key', get_option('plugin_updater_api_key', ''));
+    if (empty($api_key)) return $transient;
+
+    $plugin_slug = 'ameliabooking-gpl'; 
+    $plugin_base = plugin_basename(__FILE__);
+    
+    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
+        return $transient;
+    }
+    $current_version = $transient->checked[$plugin_base];
+
+    $url = AMELIA_GPL_UPDATE_SERVER . 'get-plugins.php';
+    $args = ['apiKey' => $api_key, 'installed' => $plugin_slug];
+    
+    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+
+    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($remote_plugins)) {
+        foreach ($remote_plugins as $plugin) {
+            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
+                
+                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
+                    
+                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+
+                    if (!empty($package_url)) {
+                        set_transient('ameliabooking_gpl_real_url_' . md5($api_key), $package_url, 120);
+
+                        $obj = new stdClass();
+                        $obj->slug = $plugin_slug;
+                        $obj->plugin = $plugin_base;
+                        $obj->new_version = $plugin['version'];
+                        $obj->package = $package_url;
+                        $obj->url = $plugin['details_url'] ?? '';
+                        
+                        $transient->response[$plugin_base] = $obj;
+                    }
+                }
+                break; 
+            }
+        }
+    }
+    return $transient;
+}, 100);
+
+// Hook B: SWAP URL
+add_filter('upgrader_package_options', function($options) {
+    
+    $package_url = isset($options['package']) ? $options['package'] : '';
+
+    if (empty($package_url) || strpos($package_url, 'wpamelia.com') !== false || strpos($package_url, 'store.melograno.io') !== false) {
+        
+        $api_key = get_option('ameliabooking_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        
+        if (!empty($api_key)) {
+            $real_url = get_transient('ameliabooking_gpl_real_url_' . md5($api_key));
+
+            if (empty($real_url)) {
+                $url = AMELIA_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'ameliabooking-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (is_array($data)) {
+                        foreach ($data as $plugin) {
+                            if (isset($plugin['slug']) && $plugin['slug'] === 'ameliabooking-gpl') {
+                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!empty($real_url)) {
+                $options['package'] = $real_url;
+            }
+        }
+    }
+
+    return $options;
+}, 2147483647);
 
 if (is_admin()) {
     add_action('wp_loaded', array('AmeliaBooking\Infrastructure\Services\Outlook\OutlookCalendarService', 'handleCallback'));
