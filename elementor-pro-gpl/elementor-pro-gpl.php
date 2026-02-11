@@ -3,7 +3,7 @@
  * Plugin Name: Elementor Pro GPL
  * Description: Elevate your designs and unlock the full power of Elementor. Gain access to dozens of Pro widgets and kits, Theme Builder, Pop Ups, Forms and WooCommerce building capabilities. (Versión Final - Interceptor de URL).
  * Plugin URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
- * Version: 3.35.0
+ * Version: 3.35.1
  * Author: Elementor.com (Modificado con Sistema GPL)
  * Author URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
  * Requires PHP: 7.4
@@ -17,6 +17,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+// ========================================
+// 1. CONFIGURACIÓN GPL
+// ========================================
+
+if ( ! defined( 'ELEMENTOR_PRO_GPL_UPDATE_SERVER' ) ) {
+    define( 'ELEMENTOR_PRO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/' ); 
+}
+
+// ========================================
+// 2. BYPASS DE LICENCIA (Funciones Pro)
+// ========================================
+
 // Define Base Config
 $_config = (object) [
     "name" => "elementor",
@@ -25,10 +37,10 @@ $_config = (object) [
     "timeout" => strtotime('+12 hours', current_time('timestamp'))
 ];
 
-// Configuration of the response with specific features and Agency tier
+// Configuration de la réponse avec les features spécifiques et le tier Agency
 $_config->cloud_response = [
-    'success' => true,
-    'license' => 'valid',
+    'success' => true, 
+    'license' => 'valid', 
     'status' => 'valid',
     'expires' => '10.10.2030',
     'tier' => 'agency',
@@ -53,6 +65,10 @@ update_option("_{$_config->name}{$_config->pro}license_v2_data", $_config->lic_d
 
 add_filter("{$_config->name}/connect/additional-connect-info", '__return_empty_array', 999);
 
+// ========================================
+// 3. INTERCEPTOR DE SEGURIDAD (Evita conexiones no deseadas)
+// ========================================
+
 // Intercept E-Pro Reqs
 add_action('plugins_loaded', function () {
     add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
@@ -64,8 +80,8 @@ add_action('plugins_loaded', function () {
                 'body' => json_encode($_config->cloud_response)
             ];
         } elseif (strpos($url, "{$_config->api}/connect/v1/library/get_template_content") !== false) {
-            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['timeout' => 25]);
-            if (wp_remote_retrieve_response_code($response) === 200) {
+            $response = wp_remote_get("{$_config->templates}/{$parsed_args['body']['id']}.json", ['sslverify' => false, 'timeout' => 25]);
+            if (wp_remote_retrieve_response_code($response) == 200) {
                 return $response;
             } else {
                 return $pre;
@@ -85,14 +101,14 @@ add_action('admin_enqueue_scripts', function () {
     }
 
     $css = '
-    .wrap.elementor-admin-page-license
+    .wrap.elementor-admin-page-license 
     .elementor-license-box h3 > span {
         position: relative !important;
         color: transparent !important;
         font-style: normal !important;
     }
 
-    .wrap.elementor-admin-page-license
+    .wrap.elementor-admin-page-license 
     .elementor-license-box h3 > span::after {
         content: "Active";
         position: absolute;
@@ -101,7 +117,7 @@ add_action('admin_enqueue_scripts', function () {
         color: #46b450 !important;
         font-weight: 600 !important;
         white-space: nowrap;
-        font-style: italic;
+		font-style: italic;
     }
     ';
 
@@ -120,7 +136,114 @@ add_action('admin_head', function () {
     <?php
 });
 
-define( 'ELEMENTOR_PRO_VERSION', '3.35.0' );
+// ========================================
+// 4. CARGAR INTERFAZ GPL
+// ========================================
+
+if ( is_admin() ) {
+    $includes_dir = __DIR__ . '/includes/';
+    if ( file_exists( $includes_dir . 'admin-license.php' ) ) require_once $includes_dir . 'admin-license.php';
+    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) require_once $includes_dir . 'ajax-license.php';
+}
+
+// ========================================
+// 5. SISTEMA DE ACTUALIZACIÓN GPL
+// ========================================
+
+// Hook A: Inyectar actualización en el transient de WordPress
+add_filter('site_transient_update_plugins', function ($transient) {
+    
+    $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
+    if (empty($api_key)) return $transient;
+
+    $plugin_slug = 'elementor-pro-gpl'; 
+    $plugin_base = plugin_basename( __FILE__ );
+    
+    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
+        return $transient;
+    }
+    $current_version = $transient->checked[$plugin_base];
+
+    $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+    $args = [ 'apiKey' => $api_key, 'installed' => $plugin_slug ];
+    
+    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+
+    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
+
+    if (is_array($remote_plugins)) {
+        foreach ($remote_plugins as $plugin) {
+            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
+                
+                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
+                    
+                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+
+                    if (!empty($package_url)) {
+                        set_transient('elpro_gpl_real_url_' . md5($api_key), $package_url, 120);
+
+                        $obj = new stdClass();
+                        $obj->slug = $plugin_slug;
+                        $obj->plugin = $plugin_base;
+                        $obj->new_version = $plugin['version'];
+                        $obj->package = $package_url;
+                        $obj->url = $plugin['details_url'] ?? '';
+                        
+                        $transient->response[$plugin_base] = $obj;
+                    }
+                }
+                break; 
+            }
+        }
+    }
+    return $transient;
+}, 100);
+
+// Hook B: SWAP URL (La pieza clave)
+add_filter('upgrader_package_options', function($options) {
+    
+    $package_url = isset($options['package']) ? $options['package'] : '';
+
+    if ( empty($package_url) || strpos($package_url, 'elementor.com') !== false ) {
+        
+        $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        
+        if (!empty($api_key)) {
+            $real_url = get_transient('elpro_gpl_real_url_' . md5($api_key));
+
+            if (empty($real_url)) {
+                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                
+                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                    if (is_array($data)) {
+                        foreach ($data as $plugin) {
+                            if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
+                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!empty($real_url)) {
+                $options['package'] = $real_url;
+            }
+        }
+    }
+
+    return $options;
+}, 2147483647);
+
+// ========================================
+// 6. CÓDIGO BASE ELEMENTOR PRO (ORIGINAL v3.35.1)
+// ========================================
+
+define( 'ELEMENTOR_PRO_VERSION', '3.35.1' );
 
 /**
  * All versions should be `major.minor`, without patch, in order to compare them properly.
@@ -279,116 +402,3 @@ if ( ! function_exists( '_is_elementor_installed' ) ) {
 		return isset( $installed_plugins[ $file_path ] );
 	}
 }
-
-// ========================================
-// SISTEMA GPL DE ACTIVACIONES
-// Servidor: https://actualizarplugins.online/api/
-// Menú: Ajustes → Licencia Elementor Pro GPL
-// ========================================
-
-// 1. CONFIGURACIÓN
-if (!defined('ELEMENTOR_PRO_GPL_UPDATE_SERVER')) {
-    define('ELEMENTOR_PRO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
-}
-
-// 4. CARGAR INTERFAZ
-if (is_admin()) {
-    $includes_dir = __DIR__ . '/includes/';
-    if (file_exists($includes_dir . 'admin-license.php')) {
-        require_once $includes_dir . 'admin-license.php';
-    }
-    if (file_exists($includes_dir . 'ajax-license.php')) {
-        require_once $includes_dir . 'ajax-license.php';
-    }
-}
-
-// 5. SISTEMA DE ACTUALIZACIÓN (LÓGICA DE SUSTITUCIÓN FORZADA)
-
-// Hook A: Inyectar actualización
-add_filter('site_transient_update_plugins', function ($transient) {
-    
-    $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
-    if (empty($api_key)) return $transient;
-
-    $plugin_slug = 'elementor-pro-gpl'; 
-    $plugin_base = plugin_basename(__FILE__);
-    
-    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
-        return $transient;
-    }
-    $current_version = $transient->checked[$plugin_base];
-
-    $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-    $args = ['apiKey' => $api_key, 'installed' => $plugin_slug];
-    
-    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
-    
-    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
-
-    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (is_array($remote_plugins)) {
-        foreach ($remote_plugins as $plugin) {
-            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
-                
-                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
-                    
-                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-
-                    if (!empty($package_url)) {
-                        set_transient('elementor_pro_gpl_real_url_' . md5($api_key), $package_url, 120);
-
-                        $obj = new stdClass();
-                        $obj->slug = $plugin_slug;
-                        $obj->plugin = $plugin_base;
-                        $obj->new_version = $plugin['version'];
-                        $obj->package = $package_url;
-                        $obj->url = $plugin['details_url'] ?? '';
-                        
-                        $transient->response[$plugin_base] = $obj;
-                    }
-                }
-                break; 
-            }
-        }
-    }
-    return $transient;
-}, 100);
-
-// Hook B: SWAP URL
-add_filter('upgrader_package_options', function($options) {
-    
-    $package_url = isset($options['package']) ? $options['package'] : '';
-
-    if (empty($package_url) || strpos($package_url, 'my.elementor.com') !== false) {
-        
-        $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
-        
-        if (!empty($api_key)) {
-            $real_url = get_transient('elementor_pro_gpl_real_url_' . md5($api_key));
-
-            if (empty($real_url)) {
-                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
-                
-                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                    $data = json_decode(wp_remote_retrieve_body($response), true);
-                    if (is_array($data)) {
-                        foreach ($data as $plugin) {
-                            if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
-                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!empty($real_url)) {
-                $options['package'] = $real_url;
-            }
-        }
-    }
-
-    return $options;
-}, 2147483647);
