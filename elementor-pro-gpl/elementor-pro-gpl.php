@@ -177,7 +177,8 @@ add_filter('site_transient_update_plugins', function ($transient) {
     ]);
     
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-        error_log('Elementor Pro GPL - Hook A: Error al consultar servidor');
+        $error_msg = is_wp_error($response) ? $response->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($response);
+        error_log('Elementor Pro GPL - Hook A: Error al consultar servidor - ' . $error_msg);
         return $transient;
     }
 
@@ -204,9 +205,9 @@ add_filter('site_transient_update_plugins', function ($transient) {
                         $obj->new_version = $plugin['version'];
                         $obj->package = $package_url;
                         $obj->url = $plugin['details_url'] ?? 'https://elementor.com';
-                        $obj->tested = '6.7';
-                        $obj->requires = '6.0';
-                        $obj->requires_php = '7.4';
+                        $obj->tested = $plugin['tested'] ?? '6.7';
+                        $obj->requires = $plugin['requires'] ?? '6.0';
+                        $obj->requires_php = $plugin['requires_php'] ?? '7.4';
                         
                         $transient->response[$plugin_base] = $obj;
                     }
@@ -226,8 +227,8 @@ add_filter('upgrader_package_options', function($options) {
     error_log('=== ELEMENTOR PRO GPL - HOOK B DEBUG ===');
     error_log('URL Original del paquete: ' . $package_url);
 
-    // SOLO interceptar si es URL de Elementor.com O está vacía
-    if (!empty($package_url) && (strpos($package_url, 'elementor.com') !== false || strpos($package_url, 'plugin-downloads') !== false)) {
+    // SOLO interceptar si es URL de Elementor.com (incluyendo subdominios como plugin-downloads.elementor.com)
+    if (!empty($package_url) && strpos($package_url, 'elementor.com') !== false) {
         
         error_log('⚠️ URL de Elementor.com detectada, procediendo a reemplazar...');
         
@@ -262,7 +263,7 @@ add_filter('upgrader_package_options', function($options) {
                 
                 if (!is_wp_error($response) && $http_code === 200) {
                     $body = wp_remote_retrieve_body($response);
-                    error_log('Body recibido: ' . substr($body, 0, 500));
+                    error_log('Body recibido: ' . strlen($body) . ' bytes');
                     
                     $data = json_decode($body, true);
                     
@@ -295,7 +296,7 @@ add_filter('upgrader_package_options', function($options) {
             if (!empty($real_url)) {
                 $options['package'] = $real_url;
                 error_log('✅✅✅ URL REEMPLAZADA EXITOSAMENTE');
-                error_log('Nueva URL: ' . $real_url);
+                error_log('Nueva URL host: ' . parse_url($real_url, PHP_URL_HOST));
             } else {
                 error_log('❌❌❌ NO SE PUDO OBTENER URL DE REEMPLAZO');
             }
@@ -309,15 +310,14 @@ add_filter('upgrader_package_options', function($options) {
     error_log('=== FIN HOOK B DEBUG ===');
     
     return $options;
-}, PHP_INT_MAX - 1);
+}, PHP_INT_MAX - 1); // Prioridad muy alta para ejecutar después de otros filtros que puedan modificar el package
 
 // Ocultar URL de descarga en la interfaz de WordPress
 add_filter('gettext', function($translation, $text, $domain) {
     // Interceptar mensaje "Downloading update from %s&#8230;"
     if ($text === 'Downloading update from %s&#8230;' || $text === 'Downloading update from %s…') {
-        // Verificar si estamos actualizando Elementor Pro GPL
-        $screen = get_current_screen();
-        if ($screen && $screen->id === 'update-core') {
+        // Aplicar en contexto admin o durante actualizaciones automáticas
+        if (is_admin() || (defined('DOING_CRON') && DOING_CRON)) {
             return 'Descargando actualización desde servidor seguro...';
         }
     }
