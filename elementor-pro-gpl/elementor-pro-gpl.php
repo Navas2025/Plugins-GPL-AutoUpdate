@@ -3,7 +3,7 @@
  * Plugin Name: Elementor Pro GPL
  * Description: Elevate your designs and unlock the full power of Elementor. Gain access to dozens of Pro widgets and kits, Theme Builder, Pop Ups, Forms and WooCommerce building capabilities. (Versión Final - Interceptor de URL).
  * Plugin URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
- * Version: 3.35.1
+ * Version: 3.35.0
  * Author: Elementor.com (Modificado con Sistema GPL)
  * Author URI: https://go.elementor.com/wp-dash-wp-plugins-author-uri/
  * Requires PHP: 7.4
@@ -334,10 +334,10 @@ add_filter('upgrader_source_selection', function($source, $remote_source, $upgra
 }, 10, 4);
 
 // ========================================
-// 6. CÓDIGO BASE ELEMENTOR PRO (ORIGINAL v3.35.1)
+// 6. CÓDIGO BASE ELEMENTOR PRO (ORIGINAL v3.35.0)
 // ========================================
 
-define( 'ELEMENTOR_PRO_VERSION', '3.35.1' );
+define( 'ELEMENTOR_PRO_VERSION', '3.35.0' );
 
 /**
  * All versions should be `major.minor`, without patch, in order to compare them properly.
