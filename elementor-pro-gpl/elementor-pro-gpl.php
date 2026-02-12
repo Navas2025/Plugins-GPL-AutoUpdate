@@ -164,12 +164,23 @@ add_filter('site_transient_update_plugins', function ($transient) {
     }
     $current_version = $transient->checked[$plugin_base];
 
+    // Consultar al servidor
     $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
     $args = [ 'apiKey' => $api_key, 'installed' => $plugin_slug ];
     
-    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
+    $response = wp_remote_get(add_query_arg($args, $url), [
+        'timeout' => 15, 
+        'sslverify' => false,
+        'headers' => [
+            'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
+        ]
+    ]);
     
-    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        $error_msg = is_wp_error($response) ? $response->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($response);
+        error_log('Elementor Pro GPL - Hook A: Error al consultar servidor - ' . $error_msg);
+        return $transient;
+    }
 
     $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
 
@@ -182,14 +193,21 @@ add_filter('site_transient_update_plugins', function ($transient) {
                     $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
 
                     if (!empty($package_url)) {
-                        set_transient('elpro_gpl_real_url_' . md5($api_key), $package_url, 120);
+                        // Guardar URL en transient PERSISTENTE (24 horas)
+                        set_transient('elpro_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
+                        
+                        error_log('✅ Elementor Pro GPL - Hook A: Nueva versión detectada: ' . $plugin['version']);
+                        error_log('✅ Elementor Pro GPL - Hook A: URL guardada en transient');
 
                         $obj = new stdClass();
                         $obj->slug = $plugin_slug;
                         $obj->plugin = $plugin_base;
                         $obj->new_version = $plugin['version'];
                         $obj->package = $package_url;
-                        $obj->url = $plugin['details_url'] ?? '';
+                        $obj->url = $plugin['details_url'] ?? 'https://elementor.com';
+                        $obj->tested = $plugin['tested'] ?? '6.7';
+                        $obj->requires = $plugin['requires'] ?? '6.0';
+                        $obj->requires_php = $plugin['requires_php'] ?? '7.4';
                         
                         $transient->response[$plugin_base] = $obj;
                     }
@@ -201,43 +219,119 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: SWAP URL (La pieza clave)
+// Hook B: SWAP URL (interceptar descarga de Elementor.com)
 add_filter('upgrader_package_options', function($options) {
     
     $package_url = isset($options['package']) ? $options['package'] : '';
+    
+    error_log('=== ELEMENTOR PRO GPL - HOOK B DEBUG ===');
+    error_log('URL Original del paquete: ' . $package_url);
 
-    if ( empty($package_url) || strpos($package_url, 'elementor.com') !== false ) {
+    // SOLO interceptar si es URL de Elementor.com (incluyendo subdominios como plugin-downloads.elementor.com)
+    if (!empty($package_url) && strpos($package_url, 'elementor.com') !== false) {
+        
+        error_log('⚠️ URL de Elementor.com detectada, procediendo a reemplazar...');
         
         $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
         if (!empty($api_key)) {
+            // Intentar obtener URL del transient
             $real_url = get_transient('elpro_gpl_real_url_' . md5($api_key));
+            
+            error_log('Transient key: elpro_gpl_real_url_' . md5($api_key));
+            error_log('URL del Transient: ' . ($real_url ?: '❌ VACÍO'));
 
+            // Si no hay transient, consultar al servidor
             if (empty($real_url)) {
-                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+                error_log('⚠️ Transient vacío, consultando servidor de emergencia...');
                 
-                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                    $data = json_decode(wp_remote_retrieve_body($response), true);
+                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+                $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url);
+                
+                error_log('URL de consulta: ' . $query_url);
+                
+                $response = wp_remote_get($query_url, [
+                    'timeout' => 15, 
+                    'sslverify' => false,
+                    'headers' => [
+                        'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
+                    ]
+                ]);
+                
+                $http_code = wp_remote_retrieve_response_code($response);
+                error_log('Respuesta servidor: HTTP ' . $http_code);
+                
+                if (!is_wp_error($response) && $http_code === 200) {
+                    $body = wp_remote_retrieve_body($response);
+                    error_log('Body recibido: ' . strlen($body) . ' bytes');
+                    
+                    $data = json_decode($body, true);
+                    
                     if (is_array($data)) {
+                        error_log('Total plugins en respuesta: ' . count($data));
+                        
                         foreach ($data as $plugin) {
                             if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
                                 $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                                error_log('✅ URL obtenida del servidor: ' . $real_url);
+                                
+                                // Guardar en transient para futuras actualizaciones
+                                set_transient('elpro_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
                                 break;
                             }
                         }
+                    } else {
+                        error_log('❌ Error: La respuesta no es un array válido');
+                    }
+                } else {
+                    if (is_wp_error($response)) {
+                        error_log('❌ Error WP: ' . $response->get_error_message());
+                    } else {
+                        error_log('❌ HTTP Code incorrecto: ' . $http_code);
                     }
                 }
             }
 
+            // Si tenemos URL, REEMPLAZARLA
             if (!empty($real_url)) {
                 $options['package'] = $real_url;
+                error_log('✅✅✅ URL REEMPLAZADA EXITOSAMENTE');
+                error_log('Nueva URL host: ' . parse_url($real_url, PHP_URL_HOST));
+            } else {
+                error_log('❌❌❌ NO SE PUDO OBTENER URL DE REEMPLAZO');
             }
+        } else {
+            error_log('❌ API Key vacía, no se puede obtener URL de descarga');
         }
+    } else {
+        error_log('ℹ️ URL no requiere reemplazo (no es de elementor.com)');
     }
 
+    error_log('=== FIN HOOK B DEBUG ===');
+    
     return $options;
-}, 2147483647);
+}, PHP_INT_MAX - 1); // Prioridad muy alta para ejecutar después de otros filtros que puedan modificar el package
+
+// Ocultar URL de descarga en la interfaz de WordPress
+add_filter('gettext', function($translation, $text, $domain) {
+    // Interceptar mensaje "Downloading update from %s&#8230;"
+    if ($text === 'Downloading update from %s&#8230;' || $text === 'Downloading update from %s…') {
+        // Aplicar en contexto admin o durante actualizaciones automáticas
+        if (is_admin() || (defined('DOING_CRON') && DOING_CRON)) {
+            return 'Descargando actualización desde servidor seguro...';
+        }
+    }
+    return $translation;
+}, 10, 3);
+
+// Filtro adicional para ocultar URL en el upgrader
+add_filter('upgrader_source_selection', function($source, $remote_source, $upgrader, $hook_extra) {
+    // Si estamos actualizando Elementor Pro GPL, modificar mensaje
+    if (isset($hook_extra['plugin']) && strpos($hook_extra['plugin'], 'elementor-pro-gpl') !== false) {
+        error_log('✅ Actualizando Elementor Pro GPL desde: ' . basename($source));
+    }
+    return $source;
+}, 10, 4);
 
 // ========================================
 // 6. CÓDIGO BASE ELEMENTOR PRO (ORIGINAL v3.35.1)
