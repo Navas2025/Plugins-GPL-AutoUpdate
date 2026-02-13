@@ -133,7 +133,9 @@ add_filter('site_transient_update_plugins', function ($transient) {
                     $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
 
                     if (!empty($package_url)) {
-                        set_transient('rank_math_pro_gpl_real_url_' . md5($api_key), $package_url, 120);
+                        set_transient('rankmath_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
+                        error_log('✅ Rank Math GPL - Hook A: Nueva versión detectada: ' . $plugin['version']);
+                        error_log('✅ Rank Math GPL - Hook A: URL guardada en transient');
 
                         $obj = new stdClass();
                         $obj->slug = $plugin_slug;
@@ -141,6 +143,8 @@ add_filter('site_transient_update_plugins', function ($transient) {
                         $obj->new_version = $plugin['version'];
                         $obj->package = $package_url;
                         $obj->url = $plugin['details_url'] ?? '';
+                        $obj->tested = $plugin['tested'] ?? '6.7';
+                        $obj->requires = $plugin['requires'] ?? '6.0';
                         
                         $transient->response[$plugin_base] = $obj;
                     }
@@ -152,43 +156,115 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: SWAP URL
-add_filter('upgrader_package_options', function($options) {
+// Hook B: Interceptar ANTES de la descarga (SOLUCIÓN DEFINITIVA)
+add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
-    $package_url = isset($options['package']) ? $options['package'] : '';
-
-    if (empty($package_url) || strpos($package_url, 'rankmath.com') !== false) {
+    error_log('=== RANK MATH GPL - UPGRADER PRE DOWNLOAD ===');
+    error_log('Package URL recibida: ' . $package);
+    
+    // Solo interceptar URLs de rankmath.com
+    if (!empty($package) && strpos($package, 'rankmath.com') !== false) {
+        
+        error_log('⚠️ URL de Rank Math detectada, procediendo a reemplazar...');
         
         $api_key = get_option('rank_math_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
-        if (!empty($api_key)) {
-            $real_url = get_transient('rank_math_pro_gpl_real_url_' . md5($api_key));
-
-            if (empty($real_url)) {
-                $url = RANK_MATH_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'rank-math-pro-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+        if (empty($api_key)) {
+            error_log('❌ API Key vacía');
+            error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+            return $reply;
+        }
+        
+        error_log('✅ API Key encontrada: ' . substr($api_key, 0, 10) . '...');
+        
+        // Obtener URL real del transient
+        $real_url = get_transient('rankmath_gpl_real_url_' . md5($api_key));
+        
+        error_log('Transient key: rankmath_gpl_real_url_' . md5($api_key));
+        error_log('URL del Transient: ' . ($real_url ?: '❌ VACÍO'));
+        
+        // Si no hay transient, consultar servidor
+        if (empty($real_url)) {
+            error_log('⚠️ Transient vacío, consultando servidor...');
+            
+            $url = RANK_MATH_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+            $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'rank-math-pro-gpl'], $url);
+            
+            error_log('URL de consulta: ' . $query_url);
+            
+            $response = wp_remote_get($query_url, [
+                'timeout' => 15,
+                'sslverify' => false,
+                'headers' => [
+                    'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
+                ]
+            ]);
+            
+            $http_code = wp_remote_retrieve_response_code($response);
+            error_log('Respuesta servidor: HTTP ' . $http_code);
+            
+            if (!is_wp_error($response) && $http_code === 200) {
+                $body = wp_remote_retrieve_body($response);
+                error_log('Body recibido: ' . strlen($body) . ' bytes');
                 
-                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                    $data = json_decode(wp_remote_retrieve_body($response), true);
-                    if (is_array($data)) {
-                        foreach ($data as $plugin) {
-                            if (isset($plugin['slug']) && $plugin['slug'] === 'rank-math-pro-gpl') {
-                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-                                break;
-                            }
+                $data = json_decode($body, true);
+                
+                if (is_array($data)) {
+                    error_log('Total plugins en respuesta: ' . count($data));
+                    
+                    foreach ($data as $plugin) {
+                        if (isset($plugin['slug']) && $plugin['slug'] === 'rank-math-pro-gpl') {
+                            $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                            error_log('✅ URL obtenida del servidor: ' . $real_url);
+                            
+                            // Guardar en transient
+                            set_transient('rankmath_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
+                            break;
                         }
                     }
+                } else {
+                    error_log('❌ Error: La respuesta no es un array válido');
+                }
+            } else {
+                if (is_wp_error($response)) {
+                    error_log('❌ Error WP: ' . $response->get_error_message());
+                } else {
+                    error_log('❌ HTTP Code incorrecto: ' . $http_code);
                 }
             }
-
-            if (!empty($real_url)) {
-                $options['package'] = $real_url;
-            }
         }
+        
+        // Si tenemos URL real, descargar desde ahí
+        if (!empty($real_url)) {
+            error_log('✅✅✅ DESCARGANDO DESDE HIDRIVE: ' . $real_url);
+            
+            // Descargar el archivo directamente usando WordPress
+            $tmpfile = download_url($real_url);
+            
+            if (is_wp_error($tmpfile)) {
+                error_log('❌ Error al descargar desde HiDrive: ' . $tmpfile->get_error_message());
+                error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+                return $tmpfile;
+            }
+            
+            error_log('✅✅✅ ARCHIVO DESCARGADO EXITOSAMENTE');
+            error_log('Ruta temporal: ' . $tmpfile);
+            error_log('Tamaño del archivo: ' . filesize($tmpfile) . ' bytes');
+            error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+            
+            // Retornar la ruta del archivo temporal
+            return $tmpfile;
+        } else {
+            error_log('❌❌❌ NO SE PUDO OBTENER URL DE REEMPLAZO');
+        }
+    } else {
+        error_log('ℹ️ URL no requiere reemplazo (no es de rankmath.com)');
     }
-
-    return $options;
-}, 2147483647);
+    
+    error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+    return $reply;
+    
+}, 10, 3);
 
 // ========================================
 // 6. VERIFICAR SI EXISTE VERSIÓN GRATUITA
