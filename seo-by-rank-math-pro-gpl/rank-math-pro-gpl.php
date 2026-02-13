@@ -5,11 +5,11 @@
  * @package      RANK_MATH_PRO_GPL
  * @copyright    Copyright (C) 2018-2025, GPL System
  * @link         https://actualizarplugins.online
- * @since        3.0.106
+ * @since        3.0.107
  *
  * @wordpress-plugin
  * Plugin Name:       Rank Math SEO PRO GPL
- * Version:           3.0.106
+ * Version:           3.0.107
  * Plugin URI:        https://actualizarplugins.online
  * Description:       Rank Math SEO PRO con sistema GPL de actualizaciones por API Key. Compatible con versión gratuita. (Versión Final - Interceptor de URL).
  * Author:            Sistema GPL (Modificado con Sistema GPL)
@@ -107,7 +107,7 @@ add_filter('site_transient_update_plugins', function ($transient) {
     $api_key = get_option('rank_math_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
     if (empty($api_key)) return $transient;
 
-    $plugin_slug = 'rank-math-pro-gpl'; 
+    $plugin_slug = 'seo-by-rank-math-pro-gpl'; 
     $plugin_base = plugin_basename(__FILE__);
     
     if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
@@ -134,17 +134,18 @@ add_filter('site_transient_update_plugins', function ($transient) {
 
                     if (!empty($package_url)) {
                         set_transient('rankmath_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
-                        error_log('✅ Rank Math GPL - Hook A: New version detected: ' . $plugin['version']);
-                        error_log('✅ Rank Math GPL - Hook A: URL saved in transient');
+                        error_log('✅ Rank Math GPL v3.0.107 - Hook A: New version detected: ' . $plugin['version']);
+                        error_log('✅ Rank Math GPL v3.0.107 - Hook A: URL saved in transient');
 
                         $obj = new stdClass();
                         $obj->slug = $plugin_slug;
                         $obj->plugin = $plugin_base;
                         $obj->new_version = $plugin['version'];
                         $obj->package = $package_url;
-                        $obj->url = $plugin['details_url'] ?? '';
+                        $obj->url = $plugin['details_url'] ?? 'https://rankmath.com';
                         $obj->tested = $plugin['tested'] ?? '6.7';
                         $obj->requires = $plugin['requires'] ?? '6.0';
+                        $obj->requires_php = $plugin['requires_php'] ?? '7.4';
                         
                         $transient->response[$plugin_base] = $obj;
                     }
@@ -159,8 +160,9 @@ add_filter('site_transient_update_plugins', function ($transient) {
 // Hook B: Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
-    error_log('=== RANK MATH GPL - UPGRADER PRE DOWNLOAD ===');
+    error_log('=== RANK MATH PRO GPL v3.0.107 - UPGRADER PRE DOWNLOAD ===');
     error_log('Package URL received: ' . $package);
+    error_log('Reply inicial: ' . print_r($reply, true));
     
     // Only intercept URLs from rankmath.com
     if (!empty($package) && strpos($package, 'rankmath.com') !== false) {
@@ -188,7 +190,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
             error_log('⚠️ Empty transient, querying server...');
             
             $url = RANK_MATH_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-            $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'rank-math-pro-gpl'], $url);
+            $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'seo-by-rank-math-pro-gpl'], $url);
             
             error_log('Query URL: ' . $query_url);
             
@@ -213,7 +215,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
                     error_log('Total plugins in response: ' . count($data));
                     
                     foreach ($data as $plugin) {
-                        if (isset($plugin['slug']) && $plugin['slug'] === 'rank-math-pro-gpl') {
+                        if (isset($plugin['slug']) && $plugin['slug'] === 'seo-by-rank-math-pro-gpl') {
                             $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
                             error_log('✅ URL obtained from server: ' . $real_url);
                             
@@ -265,6 +267,27 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     return $reply;
     
 }, 10, 3);
+
+// Ocultar URL de descarga en la interfaz de WordPress
+add_filter('gettext', function($translation, $text, $domain) {
+    // Interceptar mensaje "Downloading update from %s&#8230;"
+    if ($text === 'Downloading update from %s&#8230;' || $text === 'Downloading update from %s…') {
+        // Aplicar en contexto admin o durante actualizaciones automáticas
+        if (is_admin() || (defined('DOING_CRON') && DOING_CRON)) {
+            return 'Descargando actualización desde servidor seguro...';
+        }
+    }
+    return $translation;
+}, 10, 3);
+
+// Filtro adicional para ocultar URL en el upgrader
+add_filter('upgrader_source_selection', function($source, $remote_source, $upgrader, $hook_extra) {
+    // Si estamos actualizando Rank Math Pro GPL, modificar mensaje
+    if (isset($hook_extra['plugin']) && strpos($hook_extra['plugin'], 'rank-math-pro-gpl') !== false) {
+        error_log('✅ Actualizando Rank Math Pro GPL desde: ' . basename($source));
+    }
+    return $source;
+}, 10, 4);
 
 // ========================================
 // 6. VERIFICAR SI EXISTE VERSIÓN GRATUITA
