@@ -219,98 +219,116 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: SWAP URL (interceptar descarga de Elementor.com)
-add_filter('upgrader_package_options', function($options) {
+// Hook B: Interceptar ANTES de la descarga (SOLUCIÓN DEFINITIVA)
+add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
-    $package_url = isset($options['package']) ? $options['package'] : '';
+    error_log('=== ELEMENTOR PRO GPL - UPGRADER PRE DOWNLOAD ===');
+    error_log('Package URL recibida: ' . $package);
+    error_log('Reply inicial: ' . print_r($reply, true));
     
-    error_log('=== ELEMENTOR PRO GPL - HOOK B DEBUG ===');
-    error_log('URL Original del paquete: ' . $package_url);
-
-    // SOLO interceptar si es URL de Elementor.com (incluyendo subdominios como plugin-downloads.elementor.com)
-    if (!empty($package_url) && strpos($package_url, 'elementor.com') !== false) {
+    // Solo interceptar URLs de Elementor.com
+    if (!empty($package) && strpos($package, 'elementor.com') !== false) {
         
         error_log('⚠️ URL de Elementor.com detectada, procediendo a reemplazar...');
         
         $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
-        if (!empty($api_key)) {
-            // Intentar obtener URL del transient
-            $real_url = get_transient('elpro_gpl_real_url_' . md5($api_key));
+        if (empty($api_key)) {
+            error_log('❌ API Key vacía');
+            error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+            return $reply;
+        }
+        
+        error_log('✅ API Key encontrada: ' . substr($api_key, 0, 10) . '...');
+        
+        // Obtener URL real del transient
+        $real_url = get_transient('elpro_gpl_real_url_' . md5($api_key));
+        
+        error_log('Transient key: elpro_gpl_real_url_' . md5($api_key));
+        error_log('URL del Transient: ' . ($real_url ?: '❌ VACÍO'));
+        
+        // Si no hay transient, consultar servidor
+        if (empty($real_url)) {
+            error_log('⚠️ Transient vacío, consultando servidor...');
             
-            error_log('Transient key: elpro_gpl_real_url_' . md5($api_key));
-            error_log('URL del Transient: ' . ($real_url ?: '❌ VACÍO'));
-
-            // Si no hay transient, consultar al servidor
-            if (empty($real_url)) {
-                error_log('⚠️ Transient vacío, consultando servidor de emergencia...');
+            $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
+            $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url);
+            
+            error_log('URL de consulta: ' . $query_url);
+            
+            $response = wp_remote_get($query_url, [
+                'timeout' => 15,
+                'sslverify' => false,
+                'headers' => [
+                    'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
+                ]
+            ]);
+            
+            $http_code = wp_remote_retrieve_response_code($response);
+            error_log('Respuesta servidor: HTTP ' . $http_code);
+            
+            if (!is_wp_error($response) && $http_code === 200) {
+                $body = wp_remote_retrieve_body($response);
+                error_log('Body recibido: ' . strlen($body) . ' bytes');
                 
-                $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-                $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'elementor-pro-gpl'], $url);
+                $data = json_decode($body, true);
                 
-                error_log('URL de consulta: ' . $query_url);
-                
-                $response = wp_remote_get($query_url, [
-                    'timeout' => 15, 
-                    'sslverify' => false,
-                    'headers' => [
-                        'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
-                    ]
-                ]);
-                
-                $http_code = wp_remote_retrieve_response_code($response);
-                error_log('Respuesta servidor: HTTP ' . $http_code);
-                
-                if (!is_wp_error($response) && $http_code === 200) {
-                    $body = wp_remote_retrieve_body($response);
-                    error_log('Body recibido: ' . strlen($body) . ' bytes');
+                if (is_array($data)) {
+                    error_log('Total plugins en respuesta: ' . count($data));
                     
-                    $data = json_decode($body, true);
-                    
-                    if (is_array($data)) {
-                        error_log('Total plugins en respuesta: ' . count($data));
-                        
-                        foreach ($data as $plugin) {
-                            if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
-                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-                                error_log('✅ URL obtenida del servidor: ' . $real_url);
-                                
-                                // Guardar en transient para futuras actualizaciones
-                                set_transient('elpro_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
-                                break;
-                            }
+                    foreach ($data as $plugin) {
+                        if (isset($plugin['slug']) && $plugin['slug'] === 'elementor-pro-gpl') {
+                            $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                            error_log('✅ URL obtenida del servidor: ' . $real_url);
+                            
+                            // Guardar en transient
+                            set_transient('elpro_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
+                            break;
                         }
-                    } else {
-                        error_log('❌ Error: La respuesta no es un array válido');
                     }
                 } else {
-                    if (is_wp_error($response)) {
-                        error_log('❌ Error WP: ' . $response->get_error_message());
-                    } else {
-                        error_log('❌ HTTP Code incorrecto: ' . $http_code);
-                    }
+                    error_log('❌ Error: La respuesta no es un array válido');
+                }
+            } else {
+                if (is_wp_error($response)) {
+                    error_log('❌ Error WP: ' . $response->get_error_message());
+                } else {
+                    error_log('❌ HTTP Code incorrecto: ' . $http_code);
                 }
             }
-
-            // Si tenemos URL, REEMPLAZARLA
-            if (!empty($real_url)) {
-                $options['package'] = $real_url;
-                error_log('✅✅✅ URL REEMPLAZADA EXITOSAMENTE');
-                error_log('Nueva URL host: ' . parse_url($real_url, PHP_URL_HOST));
-            } else {
-                error_log('❌❌❌ NO SE PUDO OBTENER URL DE REEMPLAZO');
+        }
+        
+        // Si tenemos URL real, descargar desde ahí
+        if (!empty($real_url)) {
+            error_log('✅✅✅ DESCARGANDO DESDE HIDRIVE: ' . $real_url);
+            
+            // Descargar el archivo directamente usando WordPress
+            $tmpfile = download_url($real_url);
+            
+            if (is_wp_error($tmpfile)) {
+                error_log('❌ Error al descargar desde HiDrive: ' . $tmpfile->get_error_message());
+                error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+                return $tmpfile;
             }
+            
+            error_log('✅✅✅ ARCHIVO DESCARGADO EXITOSAMENTE');
+            error_log('Ruta temporal: ' . $tmpfile);
+            error_log('Tamaño del archivo: ' . filesize($tmpfile) . ' bytes');
+            error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+            
+            // Retornar la ruta del archivo temporal
+            return $tmpfile;
         } else {
-            error_log('❌ API Key vacía, no se puede obtener URL de descarga');
+            error_log('❌❌❌ NO SE PUDO OBTENER URL DE REEMPLAZO');
         }
     } else {
         error_log('ℹ️ URL no requiere reemplazo (no es de elementor.com)');
     }
-
-    error_log('=== FIN HOOK B DEBUG ===');
     
-    return $options;
-}, PHP_INT_MAX - 1); // Prioridad muy alta para ejecutar después de otros filtros que puedan modificar el package
+    error_log('=== FIN UPGRADER PRE DOWNLOAD ===');
+    return $reply;
+    
+}, 10, 3);
 
 // Ocultar URL de descarga en la interfaz de WordPress
 add_filter('gettext', function($translation, $text, $domain) {
