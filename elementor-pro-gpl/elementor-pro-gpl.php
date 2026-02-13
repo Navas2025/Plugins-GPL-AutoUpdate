@@ -227,7 +227,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     error_log('Reply inicial: ' . print_r($reply, true));
     
     // Solo interceptar URLs de Elementor.com
-    if (!empty($package) && (strpos($package, 'elementor.com') !== false || strpos($package, 'plugin-downloads') !== false)) {
+    if (!empty($package) && strpos($package, 'elementor.com') !== false) {
         
         error_log('⚠️ URL de Elementor.com detectada, procediendo a reemplazar...');
         
@@ -269,7 +269,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
             
             if (!is_wp_error($response) && $http_code === 200) {
                 $body = wp_remote_retrieve_body($response);
-                error_log('Body recibido (primeros 500 chars): ' . substr($body, 0, 500));
+                error_log('Body recibido: ' . strlen($body) . ' bytes');
                 
                 $data = json_decode($body, true);
                 
