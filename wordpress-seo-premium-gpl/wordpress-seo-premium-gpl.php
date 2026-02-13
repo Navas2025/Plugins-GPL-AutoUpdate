@@ -10,7 +10,7 @@
  *
  * @wordpress-plugin
  * Plugin Name: Yoast SEO Premium GPL
- * Version:     26.9
+ * Version:     26.8
  * Plugin URI:  https://yoa.st/2jc
  * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more. (Versión Final - Interceptor de URL).
  * Author:      Team Yoast (Modificado con Sistema GPL)
@@ -105,7 +105,7 @@ if ( ! defined( 'WPSEO_PREMIUM_BASENAME' ) ) {
  * {@internal Nobody should be able to overrule the real version number as this can cause
  *            serious issues with the options, so no if ( ! defined() ).}}
  */
-define( 'WPSEO_PREMIUM_VERSION', '26.9' );
+define( 'WPSEO_PREMIUM_VERSION', '26.8' );
 
 // Initialize Premium autoloader.
 $wpseo_premium_dir               = WPSEO_PREMIUM_PATH;
@@ -181,7 +181,9 @@ add_filter('site_transient_update_plugins', function ($transient) {
                     $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
 
                     if (!empty($package_url)) {
-                        set_transient('yoast_seo_gpl_real_url_' . md5($api_key), $package_url, 120);
+                        set_transient('yoast_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
+                        error_log('✅ Yoast SEO GPL - Hook A: New version detected: ' . $plugin['version']);
+                        error_log('✅ Yoast SEO GPL - Hook A: URL saved in transient');
 
                         $obj = new stdClass();
                         $obj->slug = $plugin_slug;
@@ -189,6 +191,8 @@ add_filter('site_transient_update_plugins', function ($transient) {
                         $obj->new_version = $plugin['version'];
                         $obj->package = $package_url;
                         $obj->url = $plugin['details_url'] ?? '';
+                        $obj->tested = $plugin['tested'] ?? '6.7';
+                        $obj->requires = $plugin['requires'] ?? '6.0';
                         
                         $transient->response[$plugin_base] = $obj;
                     }
@@ -200,40 +204,112 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: SWAP URL
-add_filter('upgrader_package_options', function($options) {
+// Hook B: Intercept BEFORE download (DEFINITIVE SOLUTION)
+add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
-    $package_url = isset($options['package']) ? $options['package'] : '';
-
-    if (empty($package_url) || strpos($package_url, 'my.yoast.com') !== false) {
+    error_log('=== YOAST SEO GPL - UPGRADER PRE DOWNLOAD ===');
+    error_log('Package URL received: ' . $package);
+    
+    // Only intercept URLs from my.yoast.com o yoast.com
+    if (!empty($package) && (strpos($package, 'my.yoast.com') !== false || strpos($package, 'yoast.com') !== false)) {
+        
+        error_log('⚠️ Yoast URL detected, proceeding to replace...');
         
         $api_key = get_option('yoast_seo_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
-        if (!empty($api_key)) {
-            $real_url = get_transient('yoast_seo_gpl_real_url_' . md5($api_key));
-
-            if (empty($real_url)) {
-                $url = YOAST_SEO_GPL_UPDATE_SERVER . 'get-plugins.php';
-                $response = wp_remote_get(add_query_arg(['apiKey' => $api_key, 'installed' => 'wordpress-seo-premium-gpl'], $url), ['timeout' => 15, 'sslverify' => false]);
+        if (empty($api_key)) {
+            error_log('❌ API Key is empty');
+            error_log('=== END UPGRADER PRE DOWNLOAD ===');
+            return $reply;
+        }
+        
+        error_log('✅ API Key found: ' . substr($api_key, 0, 10) . '...');
+        
+        // Get real URL from transient
+        $real_url = get_transient('yoast_gpl_real_url_' . md5($api_key));
+        
+        error_log('Transient key: yoast_gpl_real_url_' . md5($api_key));
+        error_log('URL from Transient: ' . ($real_url ?: '❌ EMPTY'));
+        
+        // If no transient, query server
+        if (empty($real_url)) {
+            error_log('⚠️ Empty transient, querying server...');
+            
+            $url = YOAST_SEO_GPL_UPDATE_SERVER . 'get-plugins.php';
+            $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'wordpress-seo-premium-gpl'], $url);
+            
+            error_log('Query URL: ' . $query_url);
+            
+            $response = wp_remote_get($query_url, [
+                'timeout' => 15,
+                'sslverify' => false,
+                'headers' => [
+                    'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
+                ]
+            ]);
+            
+            $http_code = wp_remote_retrieve_response_code($response);
+            error_log('Server response: HTTP ' . $http_code);
+            
+            if (!is_wp_error($response) && $http_code === 200) {
+                $body = wp_remote_retrieve_body($response);
+                error_log('Body received: ' . strlen($body) . ' bytes');
                 
-                if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
-                    $data = json_decode(wp_remote_retrieve_body($response), true);
-                    if (is_array($data)) {
-                        foreach ($data as $plugin) {
-                            if (isset($plugin['slug']) && $plugin['slug'] === 'wordpress-seo-premium-gpl') {
-                                $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-                                break;
-                            }
+                $data = json_decode($body, true);
+                
+                if (is_array($data)) {
+                    error_log('Total plugins in response: ' . count($data));
+                    
+                    foreach ($data as $plugin) {
+                        if (isset($plugin['slug']) && $plugin['slug'] === 'wordpress-seo-premium-gpl') {
+                            $real_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
+                            error_log('✅ URL obtained from server: ' . $real_url);
+                            
+                            // Save in transient
+                            set_transient('yoast_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
+                            break;
                         }
                     }
+                } else {
+                    error_log('❌ Error: Response is not a valid array');
+                }
+            } else {
+                if (is_wp_error($response)) {
+                    error_log('❌ Error WP: ' . $response->get_error_message());
+                } else {
+                    error_log('❌ Incorrect HTTP Code: ' . $http_code);
                 }
             }
-
-            if (!empty($real_url)) {
-                $options['package'] = $real_url;
-            }
         }
+        
+        // If we have real URL, download from there
+        if (!empty($real_url)) {
+            error_log('✅✅✅ DOWNLOADING FROM HIDRIVE: ' . $real_url);
+            
+            // Download file directly using WordPress
+            $tmpfile = download_url($real_url);
+            
+            if (is_wp_error($tmpfile)) {
+                error_log('❌ Error downloading from HiDrive: ' . $tmpfile->get_error_message());
+                error_log('=== END UPGRADER PRE DOWNLOAD ===');
+                return $tmpfile;
+            }
+            
+            error_log('✅✅✅ FILE DOWNLOADED SUCCESSFULLY');
+            error_log('Temporary path: ' . $tmpfile);
+            error_log('File size: ' . filesize($tmpfile) . ' bytes');
+            error_log('=== END UPGRADER PRE DOWNLOAD ===');
+            
+            // Return temporary file path
+            return $tmpfile;
+        } else {
+            error_log('❌❌❌ COULD NOT OBTAIN REPLACEMENT URL');
+        }
+    } else {
+        error_log('ℹ️ URL does not require replacement (not from Yoast)');
     }
-
-    return $options;
-}, 2147483647);
+    
+    error_log('=== END UPGRADER PRE DOWNLOAD ===');
+    return $reply;
+    
+}, 10, 3);
