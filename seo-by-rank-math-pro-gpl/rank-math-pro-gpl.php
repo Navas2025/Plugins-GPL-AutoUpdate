@@ -272,8 +272,10 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 add_filter('gettext', function($translation, $text, $domain) {
     // Interceptar mensaje "Downloading update from %s&#8230;"
     if ($text === 'Downloading update from %s&#8230;' || $text === 'Downloading update from %s…') {
-        // Aplicar en contexto admin o durante actualizaciones automáticas
-        if (is_admin() || (defined('DOING_CRON') && DOING_CRON)) {
+        // Solo aplicar durante actualizaciones y en contexto admin
+        if ((is_admin() || (defined('DOING_CRON') && DOING_CRON)) && 
+            (isset($_GET['action']) && $_GET['action'] === 'upgrade-plugin' || 
+             isset($_GET['action']) && $_GET['action'] === 'do-plugin-upgrade')) {
             return 'Descargando actualización desde servidor seguro...';
         }
     }

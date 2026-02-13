@@ -1,6 +1,22 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// Helper function to get API key
+function rank_math_pro_gpl_get_api_key() {
+    $api_key = get_option('plugin_updater_api_key', '');
+    if (empty($api_key)) {
+        $api_key = get_option('rank_math_pro_gpl_api_key', '');
+    }
+    return $api_key;
+}
+
+// Helper function to get server URL
+function rank_math_pro_gpl_get_server_url() {
+    return defined('RANK_MATH_PRO_GPL_UPDATE_SERVER') 
+        ? RANK_MATH_PRO_GPL_UPDATE_SERVER 
+        : 'https://actualizarplugins.online/api/';
+}
+
 add_action('wp_ajax_rank_math_pro_gpl_validate_key', function(){
     check_ajax_referer('rank_math_pro_gpl_nonce','security');
     
@@ -13,7 +29,7 @@ add_action('wp_ajax_rank_math_pro_gpl_validate_key', function(){
         wp_send_json_error(['message' => 'API Key vacía.']);
     }
     
-    $server_url = defined('RANK_MATH_PRO_GPL_UPDATE_SERVER') ? RANK_MATH_PRO_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
+    $server_url = rank_math_pro_gpl_get_server_url();
     $validate_endpoint = $server_url . 'validate-key.php';
     
     $response = wp_remote_post($validate_endpoint, [
@@ -121,14 +137,8 @@ add_action('wp_ajax_rank_math_pro_gpl_deactivate_key', function(){
         wp_send_json_error(['message' => 'Permisos insuficientes.']);
     }
     
-    $api_key = get_option('plugin_updater_api_key','');
-    
-    if (empty($api_key)) {
-        // Si no hay key en formato Auto Updater, buscar en formato original
-        $api_key = get_option('rank_math_pro_gpl_api_key','');
-    }
-    
-    $server_url = defined('RANK_MATH_PRO_GPL_UPDATE_SERVER') ? RANK_MATH_PRO_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
+    $api_key = rank_math_pro_gpl_get_api_key();
+    $server_url = rank_math_pro_gpl_get_server_url();
     
     // Intentar desregistrar del servidor
     if (!empty($api_key)) {
@@ -168,21 +178,19 @@ add_action('wp_ajax_rank_math_pro_gpl_deactivate_key', function(){
     wp_send_json_success(['message' => 'API Key desactivada exitosamente. Dominio desregistrado.']);
 });
 
-// Cron para revalidación diaria
-add_action('wp', function() {
-    if (!wp_next_scheduled('rank_math_pro_gpl_revalidate_key')) {
-        wp_schedule_event(time(), 'daily', 'rank_math_pro_gpl_revalidate_key');
-    }
-});
+// Cron para revalidación diaria - solo programar si no existe
+if (!wp_next_scheduled('rank_math_pro_gpl_revalidate_key')) {
+    wp_schedule_event(time(), 'daily', 'rank_math_pro_gpl_revalidate_key');
+}
 
 add_action('rank_math_pro_gpl_revalidate_key', function() {
-    $api_key = get_option('plugin_updater_api_key','');
+    $api_key = rank_math_pro_gpl_get_api_key();
     
     if (empty($api_key)) {
         return; // No hay key para revalidar
     }
     
-    $server_url = defined('RANK_MATH_PRO_GPL_UPDATE_SERVER') ? RANK_MATH_PRO_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
+    $server_url = rank_math_pro_gpl_get_server_url();
     $validate_endpoint = $server_url . 'validate-key.php';
     
     $payload = [
