@@ -295,7 +295,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
                 return $tmpfile;
             }
             
-            error_log('✅✅✅ ARCHIVO DESCARGADO EXITOSAMENTE');
+            error_log('✅✅✅ FILE DOWNLOADED SUCCESSFULLY');
             error_log('Temporary path: ' . $tmpfile);
             error_log('File size: ' . filesize($tmpfile) . ' bytes');
             error_log('=== END UPGRADER PRE DOWNLOAD ===');
