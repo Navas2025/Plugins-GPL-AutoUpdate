@@ -204,13 +204,13 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: Interceptar ANTES de la descarga (SOLUCIÓN DEFINITIVA)
+// Hook B: Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
     error_log('=== YOAST SEO GPL - UPGRADER PRE DOWNLOAD ===');
     error_log('Package URL received: ' . $package);
     
-    // Solo interceptar URLs de my.yoast.com o yoast.com
+    // Only intercept URLs from my.yoast.com o yoast.com
     if (!empty($package) && (strpos($package, 'my.yoast.com') !== false || strpos($package, 'yoast.com') !== false)) {
         
         error_log('⚠️ Yoast URL detected, proceeding to replace...');
@@ -225,7 +225,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         
         error_log('✅ API Key found: ' . substr($api_key, 0, 10) . '...');
         
-        // Obtener URL real del transient
+        // Get real URL from transient
         $real_url = get_transient('yoast_gpl_real_url_' . md5($api_key));
         
         error_log('Transient key: yoast_gpl_real_url_' . md5($api_key));
@@ -284,7 +284,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         
         // If we have real URL, download from there
         if (!empty($real_url)) {
-            error_log('✅✅✅ DESCARGANDO DESDE HIDRIVE: ' . $real_url);
+            error_log('✅✅✅ DOWNLOADING FROM HIDRIVE: ' . $real_url);
             
             // Download file directly using WordPress
             $tmpfile = download_url($real_url);

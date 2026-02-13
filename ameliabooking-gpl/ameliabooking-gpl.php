@@ -146,7 +146,7 @@ add_filter('site_transient_update_plugins', function ($transient) {
     return $transient;
 }, 100);
 
-// Hook B: Interceptar ANTES de la descarga (SOLUCIÓN DEFINITIVA)
+// Hook B: Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
     error_log('=== AMELIA GPL - UPGRADER PRE DOWNLOAD ===');
