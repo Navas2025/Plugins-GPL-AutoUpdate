@@ -124,8 +124,8 @@ add_filter('site_transient_update_plugins', function ($transient) {
 
                     if (!empty($package_url)) {
                         set_transient('amelia_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
-                        error_log('✅ Amelia GPL - Hook A: Nueva versión detectada: ' . $plugin['version']);
-                        error_log('✅ Amelia GPL - Hook A: URL guardada en transient');
+                        error_log('✅ Amelia GPL - Hook A: New version detected: ' . $plugin['version']);
+                        error_log('✅ Amelia GPL - Hook A: URL saved in transient');
 
                         $obj = new stdClass();
                         $obj->slug = $plugin_slug;
