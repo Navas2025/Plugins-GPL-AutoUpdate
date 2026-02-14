@@ -2,8 +2,8 @@
 /**
  * Plugin Name: WP Rocket GPL
  * Plugin URI: https://wp-rocket.me
- * Description: The best WordPress performance plugin. (Versión Final - Interceptor de URL).
- * Version: 3.20.3
+ * Description: The best WordPress performance plugin. (Versión GPL con Actualizaciones Automáticas).
+ * Version: 3.20.4
  * Requires at least: 5.8
  * Requires PHP: 7.3
  * Code Name: Iego
@@ -20,7 +20,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // ========================================
-// 1. CONFIGURACIÓN
+// PARTE 1: CONFIGURACIÓN GPL
 // ========================================
 
 if (!defined('WP_ROCKET_GPL_UPDATE_SERVER')) {
@@ -28,7 +28,7 @@ if (!defined('WP_ROCKET_GPL_UPDATE_SERVER')) {
 }
 
 // ========================================
-// 2. BYPASS DE LICENCIA (WP Rocket Pro)
+// PARTE 2: BYPASS DE LICENCIA (WP Rocket Pro)
 // ========================================
 
 /**
@@ -49,72 +49,140 @@ if (!function_exists('wp_rocket_gpl_set_license_now')) {
 wp_rocket_gpl_set_license_now();
 
 // ========================================
-// 3. INTERCEPTOR DE SEGURIDAD
+// PARTE 3: INTERCEPTOR DE SEGURIDAD (ACTUALIZADO 3.20.4)
 // ========================================
 
-add_action('plugins_loaded', function () {
-    add_filter('pre_http_request', function ($pre, $parsed_args, $url) {
-        
-        // Bypass WP Rocket license validation
-        if (strpos($url, 'api.wp-rocket.me/valid_key.php') !== false || strpos($url, 'wp-rocket.me/valid_key.php') !== false) {
-            return [
-                'response' => ['code' => 200, 'message' => 'OK'],
-                'headers' => [],
-                'body' => json_encode([
-                    'success' => true,
-                    'data' => [
-                        'consumer_key' => 'WP_ROCKET_GPL_KEY',
-                        'consumer_email' => 'admin@local.test',
-                        'secret_key' => 'gpl_active_license',
+add_filter('pre_http_request', function($response, $args, $url) {
+    
+    // Bypass WP Rocket license validation
+    if (strpos($url, 'api.wp-rocket.me/valid_key.php') !== false || strpos($url, 'wp-rocket.me/valid_key.php') !== false) {
+        $key = 'B5E0B5F8DD8689E6ACA49DD6E6E1A930';
+        $email = 'noreply@gmail.com';
+        return [
+            'response' => ['code' => 200],
+            'body' => json_encode([
+                'success' => true,
+                'data' => [
+                    'consumer_key' => substr($key, 0, 8),
+                    'consumer_email' => $email,
+                    'secret_key' => hash('crc32', $email)
+                ]
+            ])
+        ];
+    }
+    
+    // Bypass user info endpoint
+    if (strpos($url, 'api.wp-rocket.me/stat/1.0/wp-rocket/user.php') !== false) {
+        return [
+            'response' => ['code' => 200],
+            'body' => json_encode([
+                'licence_account' => -1,
+                'licence_expiration' => time() + (50 * YEAR_IN_SECONDS),
+                'licence' => ['name' => 'Infinite'],
+                'status' => 'valid',
+                'has_auto_renew' => true,
+                'date_created' => time() - (30 * DAY_IN_SECONDS)
+            ])
+        ];
+    }
+    
+    // Bypass update check endpoint
+    if (strpos($url, 'api.wp-rocket.me/check_update.php') !== false || strpos($url, 'wp-rocket.me/check_update.php') !== false) {
+        return [
+            'response' => ['code' => 200],
+            'body' => json_encode([
+                'version' => '3.20.4',
+                'details_url' => '',
+                'download_url' => ''
+            ])
+        ];
+    }
+    
+    // Bypass wpsaas endpoint (NUEVO EN 3.20.4)
+    if (strpos($url, 'wpsaas.gpltimes.com/rucss-job') !== false) {
+        return [
+            'response' => ['code' => 200],
+            'body' => json_encode([
+                'status' => 'ok',
+                'code' => 200
+            ])
+        ];
+    }
+    
+    return $response;
+}, 10, 3);
+
+// ========================================
+// PARTE 4: INICIALIZACIÓN DE LICENCIA (ACTUALIZADO 3.20.4)
+// ========================================
+
+add_action('init', function() {
+    $key = 'B5E0B5F8DD8689E6ACA49DD6E6E1A930';
+    $email = 'noreply@gmail.com';
+    
+    // Actualizar transient de settings
+    $options = get_transient('wp_rocket_settings');
+    if ($options && isset($options['license']) && '1' === $options['license']) {
+        $options['license'] = time();
+        $options['ignore'] = true;
+        set_transient('wp_rocket_settings', $options, YEAR_IN_SECONDS);
+    }
+    if (!$options || empty($options['secret_key'])) {
+        $options = [
+            'consumer_key' => substr($key, 0, 8),
+            'consumer_email' => $email,
+            'secret_key' => hash('crc32', $email),
+            'license' => time(),
+            'ignore' => true
+        ];
+        set_transient('wp_rocket_settings', $options, YEAR_IN_SECONDS);
+    }
+    
+    update_option('wp_rocket_no_licence', 0);
+    
+    // Customer data con Performance Monitoring (NUEVO EN 3.20.4)
+    $customer_data = (object) [
+        'licence_account' => -1,
+        'licence_expiration' => time() + (50 * YEAR_IN_SECONDS),
+        'licence' => (object) ['name' => 'Infinite'],
+        'status' => 'valid',
+        'has_auto_renew' => true,
+        'date_created' => time() - (30 * DAY_IN_SECONDS),
+        'performance_monitoring' => (object) [
+            'expiration' => time() + (50 * YEAR_IN_SECONDS),
+            'cancelled_at' => null,
+            'manage_url' => null,
+            'active_sku' => 'perf-monitor-advanced',
+            'plans' => [
+                (object) [
+                    'sku' => 'perf-monitor-advanced',
+                    'price' => '8.99',
+                    'limit' => '10',
+                    'title' => 'Advanced',
+                    'subtitle' => 'See how your top pages perform and quickly spot and optimize what slows your site down.',
+                    'description' => 'Up to 10 pages • Weekly updates',
+                    'billing' => '* Billed monthly. You can cancel at any time, each month started is due.',
+                    'highlights' => [
+                        'Up to 10 pages tracked',
+                        'Automatic performance monitoring',
+                        'Unlimited on-demand tests',
+                        'Full GTmetrix performance reports'
                     ],
-                ]),
-            ];
-        }
-        
-        // Bypass user info endpoint
-        if (strpos($url, 'api.wp-rocket.me/stat/1.0/wp-rocket/user.php') !== false) {
-            return [
-                'response' => ['code' => 200, 'message' => 'OK'],
-                'headers' => [],
-                'body' => json_encode([
-                    'licence_account' => -1,
-                    'licence_expiration' => time() + (50 * YEAR_IN_SECONDS),
-                    'licence' => (object) ['name' => 'GPL Unlimited'],
-                    'status' => 'valid',
-                    'has_auto_renew' => true,
-                    'date_created' => time() - (30 * DAY_IN_SECONDS),
-                ]),
-            ];
-        }
-        
-        // Bypass update check endpoint
-        if (strpos($url, 'api.wp-rocket.me/check_update.php') !== false || strpos($url, 'wp-rocket.me/check_update.php') !== false) {
-            return [
-                'response' => ['code' => 200, 'message' => 'OK'],
-                'headers' => [],
-                'body' => json_encode([
-                    'version' => '3.20.3',
-                    'details_url' => '',
-                    'download_url' => '',
-                ]),
-            ];
-        }
-        
-        // Bypass wpsaas endpoint
-        if (strpos($url, 'wpsaas.gpltimes.com') !== false) {
-            return [
-                'response' => ['code' => 200, 'message' => 'OK'],
-                'headers' => [],
-                'body' => json_encode(['status' => 'ok', 'code' => 200]),
-            ];
-        }
-        
-        return $pre;
-    }, 10, 3);
+                    'status' => 'active',
+                    'button' => (object) [
+                        'label' => 'Your plan',
+                        'action' => 'none',
+                        'url' => null
+                    ]
+                ]
+            ]
+        ]
+    ];
+    set_transient('wp_rocket_customer_data', $customer_data, DAY_IN_SECONDS);
 });
 
 // ========================================
-// 4. CARGAR SISTEMA DE ACTUALIZACIÓN Y INTERFAZ GPL
+// PARTE 5: CARGAR SISTEMA DE ACTUALIZACIÓN GPL
 // ========================================
 
 if (is_admin()) {
@@ -140,7 +208,7 @@ if (is_admin()) {
 }
 
 // ========================================
-// 5. INTERCEPTOR DE DESCARGA (Compatible con class-update-manager.php)
+// PARTE 6: INTERCEPTOR DE DESCARGA GPL
 // ========================================
 
 // Intercept BEFORE download (DEFINITIVE SOLUTION)
@@ -254,11 +322,11 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 }, 10, 3);
 
 // ========================================
-// 6. CÓDIGO BASE WP ROCKET (ORIGINAL)
+// PARTE 7: CÓDIGO BASE WP ROCKET (VERSIÓN 3.20.4)
 // ========================================
 
 // Rocket defines.
-define( 'WP_ROCKET_VERSION',               '3.20.3' );
+define( 'WP_ROCKET_VERSION',               '3.20.4' );
 define( 'WP_ROCKET_WP_VERSION',            '5.8' );
 define( 'WP_ROCKET_WP_VERSION_TESTED',     '6.3.1' );
 define( 'WP_ROCKET_PHP_VERSION',           '7.3' );
