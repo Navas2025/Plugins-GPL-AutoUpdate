@@ -235,7 +235,10 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         if (empty($api_key)) {
             error_log('❌ API Key is empty');
             error_log('=== END UPGRADER PRE DOWNLOAD ===');
-            return $reply;
+            return new WP_Error(
+                'no_api_key',
+                'API Key no configurada. Por favor, ve a Ajustes → Licencia WP Rocket para activar tu licencia GPL.'
+            );
         }
         
         error_log('✅ API Key found: ' . substr($api_key, 0, 10) . '...');
@@ -319,6 +322,10 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
             return $tmpfile;
         } else {
             error_log('❌❌❌ COULD NOT OBTAIN REPLACEMENT URL');
+            return new WP_Error(
+                'no_download_url',
+                'No se pudo obtener la URL de descarga GPL. Por favor, intenta de nuevo o contacta con soporte.'
+            );
         }
     } else {
         error_log('ℹ️ URL does not require replacement (not from wp-rocket.me)');
@@ -330,7 +337,84 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 }, 10, 3);
 
 // ========================================
-// PARTE 7: CÓDIGO BASE WP ROCKET (VERSIÓN 3.20.4)
+// PARTE 7: MANTENER PLUGIN ACTIVO DESPUÉS DE ACTUALIZAR
+// ========================================
+
+/**
+ * Evitar que el plugin se desactive después de actualizar
+ */
+add_filter('upgrader_post_install', function($response, $hook_extra, $result) {
+    global $wp_filesystem;
+    
+    // Solo aplicar para WP Rocket GPL
+    if (!isset($hook_extra['plugin']) || $hook_extra['plugin'] !== 'wp-rocket-gpl/wp-rocket-gpl.php') {
+        return $response;
+    }
+    
+    error_log('=== WP ROCKET GPL - POST INSTALL ===');
+    error_log('Source: ' . $result['source']);
+    error_log('Destination: ' . $result['destination']);
+    
+    // Si la carpeta de destino NO es wp-rocket-gpl, renombrarla
+    $plugin_folder = basename($result['destination']);
+    
+    if ($plugin_folder !== 'wp-rocket-gpl') {
+        error_log('⚠️ Carpeta incorrecta detectada: ' . $plugin_folder);
+        
+        $parent_dir = dirname($result['destination']);
+        $correct_destination = $parent_dir . '/wp-rocket-gpl/';
+        
+        error_log('Renombrando: ' . $result['destination'] . ' → ' . $correct_destination);
+        
+        // Si ya existe wp-rocket-gpl, eliminarla primero
+        if ($wp_filesystem->exists($correct_destination)) {
+            $wp_filesystem->delete($correct_destination, true);
+        }
+        
+        // Renombrar carpeta
+        $moved = $wp_filesystem->move($result['destination'], $correct_destination, true);
+        
+        if ($moved) {
+            $result['destination'] = $correct_destination;
+            $result['destination_name'] = 'wp-rocket-gpl';
+            error_log('✅ Carpeta renombrada correctamente a wp-rocket-gpl');
+        } else {
+            error_log('❌ Error al renombrar carpeta');
+        }
+    } else {
+        error_log('✅ Carpeta correcta: wp-rocket-gpl');
+    }
+    
+    error_log('=== FIN POST INSTALL ===');
+    return $result;
+}, 10, 3);
+
+/**
+ * Mantener plugin activo después de actualizar
+ */
+add_filter('update_plugin_complete_actions', function($update_actions, $plugin) {
+    // Solo para WP Rocket GPL
+    if ($plugin === 'wp-rocket-gpl/wp-rocket-gpl.php') {
+        error_log('✅ WP Rocket GPL actualizado - manteniendo activo');
+        
+        // Verificar si el plugin está activo
+        if (!function_exists('is_plugin_active')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        
+        // Si no está activo, activarlo
+        if (!is_plugin_active($plugin)) {
+            error_log('⚠️ Plugin desactivado - reactivando...');
+            activate_plugin($plugin);
+            error_log('✅ Plugin reactivado');
+        }
+    }
+    
+    return $update_actions;
+}, 10, 2);
+
+// ========================================
+// PARTE 8: CÓDIGO BASE WP ROCKET (VERSIÓN 3.20.4)
 // ========================================
 
 // Rocket defines.
