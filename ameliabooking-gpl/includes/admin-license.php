@@ -17,11 +17,11 @@ add_action('admin_menu', function() {
 function amelia_gpl_render_license_page() { 
     if (!current_user_can('manage_options')) return; 
     
-    $api_key = get_option('amelia_gpl_api_key','');
-    $status = get_option('amelia_gpl_key_status','inactive');
-    $expiry_date = get_option('amelia_gpl_expiry','');
-    $max_activations = get_option('amelia_gpl_max_activations', 0);
-    $remaining_activations = get_option('amelia_gpl_remaining_activations', 0);
+    $api_key = get_option('ameliabooking_gpl_api_key','');
+    $status = get_option('ameliabooking_gpl_key_status','inactive');
+    $expiry_date = get_option('plugin_updater_expiry','');
+    $max_activations = get_option('ameliabooking_gpl_max_activations', 0);
+    $remaining_activations = get_option('ameliabooking_gpl_remaining_activations', 0);
     // Calcular activaciones usadas correctamente
     $activation_count = ($max_activations > 0) ? max(0, $max_activations - $remaining_activations) : 0;
     
@@ -34,7 +34,7 @@ function amelia_gpl_render_license_page() {
         if ($current_timestamp >= $expiry_timestamp) {
             $is_active = false;
             $status = 'expired';
-            update_option('amelia_gpl_key_status', $status);
+            update_option('ameliabooking_gpl_key_status', $status);
         }
     }
 
