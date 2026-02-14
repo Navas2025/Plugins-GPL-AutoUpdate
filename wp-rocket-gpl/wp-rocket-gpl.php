@@ -27,6 +27,14 @@ if (!defined('WP_ROCKET_GPL_UPDATE_SERVER')) {
     define('WP_ROCKET_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
 }
 
+// Define license credentials for GPL bypass
+if (!defined('WP_ROCKET_GPL_LICENSE_KEY')) {
+    define('WP_ROCKET_GPL_LICENSE_KEY', 'B5E0B5F8DD8689E6ACA49DD6E6E1A930');
+}
+if (!defined('WP_ROCKET_GPL_LICENSE_EMAIL')) {
+    define('WP_ROCKET_GPL_LICENSE_EMAIL', 'noreply@gmail.com');
+}
+
 // ========================================
 // PARTE 2: BYPASS DE LICENCIA (WP Rocket Pro)
 // ========================================
@@ -56,8 +64,8 @@ add_filter('pre_http_request', function($response, $args, $url) {
     
     // Bypass WP Rocket license validation
     if (strpos($url, 'api.wp-rocket.me/valid_key.php') !== false || strpos($url, 'wp-rocket.me/valid_key.php') !== false) {
-        $key = 'B5E0B5F8DD8689E6ACA49DD6E6E1A930';
-        $email = 'noreply@gmail.com';
+        $key = WP_ROCKET_GPL_LICENSE_KEY;
+        $email = WP_ROCKET_GPL_LICENSE_EMAIL;
         return [
             'response' => ['code' => 200],
             'body' => json_encode([
@@ -117,8 +125,8 @@ add_filter('pre_http_request', function($response, $args, $url) {
 // ========================================
 
 add_action('init', function() {
-    $key = 'B5E0B5F8DD8689E6ACA49DD6E6E1A930';
-    $email = 'noreply@gmail.com';
+    $key = WP_ROCKET_GPL_LICENSE_KEY;
+    $email = WP_ROCKET_GPL_LICENSE_EMAIL;
     
     // Actualizar transient de settings
     $options = get_transient('wp_rocket_settings');
