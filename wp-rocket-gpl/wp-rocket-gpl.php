@@ -132,6 +132,11 @@ if (is_admin()) {
     if (file_exists($includes_dir . 'ajax-license.php')) {
         require_once $includes_dir . 'ajax-license.php';
     }
+    
+    // Proteger transients de licencia
+    if (file_exists($includes_dir . 'protect-license-transient.php')) {
+        require_once $includes_dir . 'protect-license-transient.php';
+    }
 }
 
 // ========================================
