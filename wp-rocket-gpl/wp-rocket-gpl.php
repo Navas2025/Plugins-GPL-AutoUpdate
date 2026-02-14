@@ -237,7 +237,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
             error_log('=== END UPGRADER PRE DOWNLOAD ===');
             return new WP_Error(
                 'no_api_key',
-                'API Key no configurada. Por favor, ve a Ajustes → Licencia WP Rocket para activar tu licencia GPL.'
+                __('API Key no configurada. Por favor, ve a Ajustes → Licencia WP Rocket para activar tu licencia GPL.', 'wp-rocket-gpl')
             );
         }
         
@@ -324,7 +324,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
             error_log('❌❌❌ COULD NOT OBTAIN REPLACEMENT URL');
             return new WP_Error(
                 'no_download_url',
-                'No se pudo obtener la URL de descarga GPL. Por favor, intenta de nuevo o contacta con soporte.'
+                __('No se pudo obtener la URL de descarga GPL. Por favor, intenta de nuevo o contacta con soporte.', 'wp-rocket-gpl')
             );
         }
     } else {
@@ -343,40 +343,41 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 /**
  * Evitar que el plugin se desactive después de actualizar
  */
-add_filter('upgrader_post_install', function($response, $hook_extra, $result) {
+add_filter('upgrader_post_install', function($result, $hook_extra, $install_result) {
     global $wp_filesystem;
     
     // Solo aplicar para WP Rocket GPL
     if (!isset($hook_extra['plugin']) || $hook_extra['plugin'] !== 'wp-rocket-gpl/wp-rocket-gpl.php') {
-        return $response;
+        return $result;
     }
     
     error_log('=== WP ROCKET GPL - POST INSTALL ===');
-    error_log('Source: ' . $result['source']);
-    error_log('Destination: ' . $result['destination']);
+    error_log('Source: ' . $install_result['source']);
+    error_log('Destination: ' . $install_result['destination']);
     
     // Si la carpeta de destino NO es wp-rocket-gpl, renombrarla
-    $plugin_folder = basename($result['destination']);
+    $plugin_folder = basename($install_result['destination']);
     
     if ($plugin_folder !== 'wp-rocket-gpl') {
         error_log('⚠️ Carpeta incorrecta detectada: ' . $plugin_folder);
         
-        $parent_dir = dirname($result['destination']);
+        $parent_dir = dirname($install_result['destination']);
         $correct_destination = $parent_dir . '/wp-rocket-gpl/';
         
-        error_log('Renombrando: ' . $result['destination'] . ' → ' . $correct_destination);
+        error_log('Renombrando: ' . $install_result['destination'] . ' → ' . $correct_destination);
         
         // Si ya existe wp-rocket-gpl, eliminarla primero
         if ($wp_filesystem->exists($correct_destination)) {
+            error_log('⚠️ Carpeta wp-rocket-gpl existente será reemplazada');
             $wp_filesystem->delete($correct_destination, true);
         }
         
         // Renombrar carpeta
-        $moved = $wp_filesystem->move($result['destination'], $correct_destination, true);
+        $moved = $wp_filesystem->move($install_result['destination'], $correct_destination, true);
         
         if ($moved) {
-            $result['destination'] = $correct_destination;
-            $result['destination_name'] = 'wp-rocket-gpl';
+            $install_result['destination'] = $correct_destination;
+            $install_result['destination_name'] = 'wp-rocket-gpl';
             error_log('✅ Carpeta renombrada correctamente a wp-rocket-gpl');
         } else {
             error_log('❌ Error al renombrar carpeta');
@@ -386,7 +387,7 @@ add_filter('upgrader_post_install', function($response, $hook_extra, $result) {
     }
     
     error_log('=== FIN POST INSTALL ===');
-    return $result;
+    return $install_result;
 }, 10, 3);
 
 /**
@@ -405,8 +406,12 @@ add_filter('update_plugin_complete_actions', function($update_actions, $plugin) 
         // Si no está activo, activarlo
         if (!is_plugin_active($plugin)) {
             error_log('⚠️ Plugin desactivado - reactivando...');
-            activate_plugin($plugin);
-            error_log('✅ Plugin reactivado');
+            $activation_result = activate_plugin($plugin);
+            if (is_wp_error($activation_result)) {
+                error_log('❌ Error al reactivar plugin: ' . $activation_result->get_error_message());
+            } else {
+                error_log('✅ Plugin reactivado');
+            }
         }
     }
     
