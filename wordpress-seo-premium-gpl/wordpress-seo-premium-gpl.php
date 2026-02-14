@@ -10,9 +10,9 @@
  *
  * @wordpress-plugin
  * Plugin Name: Yoast SEO Premium GPL
- * Version:     26.8
+ * Version:     26.9
  * Plugin URI:  https://yoa.st/2jc
- * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more. (Versión Final - Interceptor de URL).
+ * Description: The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more. (Versión GPL con Actualizaciones Automáticas).
  * Author:      Team Yoast (Modificado con Sistema GPL)
  * Author URI:  https://yoa.st/team-yoast-premium
  * Text Domain: wordpress-seo-premium-gpl
@@ -105,7 +105,7 @@ if ( ! defined( 'WPSEO_PREMIUM_BASENAME' ) ) {
  * {@internal Nobody should be able to overrule the real version number as this can cause
  *            serious issues with the options, so no if ( ! defined() ).}}
  */
-define( 'WPSEO_PREMIUM_VERSION', '26.8' );
+define( 'WPSEO_PREMIUM_VERSION', '26.9' );
 
 // Initialize Premium autoloader.
 $wpseo_premium_dir               = WPSEO_PREMIUM_PATH;
@@ -128,7 +128,7 @@ if ( ! wp_installing() ) {
 register_activation_hook( WPSEO_PREMIUM_FILE, [ 'WPSEO_Premium', 'install' ] );
 
 // ========================================
-// SISTEMA GPL DE ACTIVACIONES
+// PARTE 2: SISTEMA GPL DE ACTUALIZACIONES AUTOMÁTICAS
 // ========================================
 
 // 1. CONFIGURACIÓN
@@ -136,7 +136,7 @@ if (!defined('YOAST_SEO_GPL_UPDATE_SERVER')) {
     define('YOAST_SEO_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/');
 }
 
-// 4. CARGAR SISTEMA DE ACTUALIZACIÓN Y INTERFAZ GPL
+// 2. CARGAR SISTEMA DE ACTUALIZACIÓN Y INTERFAZ GPL
 if (is_admin()) {
     $includes_dir = __DIR__ . '/includes/';
     
@@ -152,9 +152,14 @@ if (is_admin()) {
     if (file_exists($includes_dir . 'ajax-license.php')) {
         require_once $includes_dir . 'ajax-license.php';
     }
+    
+    // Activar funcionalidades premium
+    if (file_exists($includes_dir . 'activate-keywords-features.php')) {
+        require_once $includes_dir . 'activate-keywords-features.php';
+    }
 }
 
-// 5. INTERCEPTOR DE DESCARGA (Compatible con class-update-manager.php)
+// 3. INTERCEPTOR DE DESCARGA (Compatible con class-update-manager.php)
 
 // Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
