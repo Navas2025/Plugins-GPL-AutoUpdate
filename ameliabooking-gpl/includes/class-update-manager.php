@@ -21,7 +21,7 @@ class Amelia_GPL_Update_Manager {
         $current_version = $transient->checked[$plugin_file] ?? false;
         $api_key = get_option('amelia_gpl_api_key', '');
         $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('amelia_gpl_expiry', '');
+        $expiry_date = get_option('plugin_updater_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);
@@ -90,7 +90,7 @@ class Amelia_GPL_Update_Manager {
         
         $api_key = get_option('amelia_gpl_api_key', '');
         $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('amelia_gpl_expiry', '');
+        $expiry_date = get_option('plugin_updater_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);
