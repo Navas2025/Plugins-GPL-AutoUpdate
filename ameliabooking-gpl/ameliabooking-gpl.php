@@ -47,8 +47,8 @@ defined('ABSPATH') or die('No script kiddies please!');
 // 1. CONFIGURACIÓN GPL
 // ========================================
 
-if ( ! defined( 'AMELIA_GPL_UPDATE_SERVER' ) ) {
-    define( 'AMELIA_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/' ); 
+if ( ! defined( 'AMELIABOOKING_GPL_UPDATE_SERVER' ) ) {
+    define( 'AMELIABOOKING_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/' ); 
 }
 
 // ========================================
@@ -113,7 +113,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         
         error_log('⚠️ Amelia URL detected, proceeding to replace...');
         
-        $api_key = get_option('amelia_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        $api_key = get_option('ameliabooking_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
         if (empty($api_key)) {
             error_log('❌ API Key is empty');
@@ -124,16 +124,16 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         error_log('✅ API Key found: ' . substr($api_key, 0, 10) . '...');
         
         // Get real URL from transient
-        $real_url = get_transient('amelia_gpl_real_url_' . md5($api_key));
+        $real_url = get_transient('ameliabooking_gpl_real_url_' . md5($api_key));
         
-        error_log('Transient key: amelia_gpl_real_url_' . md5($api_key));
+        error_log('Transient key: ameliabooking_gpl_real_url_' . md5($api_key));
         error_log('URL from Transient: ' . ($real_url ?: '❌ EMPTY'));
         
         // If no transient, query server
         if (empty($real_url)) {
             error_log('⚠️ Empty transient, querying server...');
             
-            $url = AMELIA_GPL_UPDATE_SERVER . 'get-plugins.php';
+            $url = AMELIABOOKING_GPL_UPDATE_SERVER . 'get-plugins.php';
             $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'ameliabooking-gpl'], $url);
             
             error_log('Query URL: ' . $query_url);
@@ -164,7 +164,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
                             error_log('✅ URL obtained from server: ' . $real_url);
                             
                             // Save in transient
-                            set_transient('amelia_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
+                            set_transient('ameliabooking_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
                             break;
                         }
                     }
