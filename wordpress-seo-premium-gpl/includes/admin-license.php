@@ -59,7 +59,7 @@ function yoast_seo_gpl_license_page() {
                             <p class="yoast-seo-license-warning">⚠️ <?php echo esc_html(sprintf(__('Le quedan %d activaciones.','wordpress-seo-premium-gpl'), $remaining_activations)); ?></p>
                         <?php endif; ?>
                     <?php else: ?>
-                        <p><strong><?php echo esc_html(__('Activaciones:','wordpress-seo-premium-gpl')); ?></strong> Ilimitadas</p>
+                        <p><strong><?php echo esc_html(__('Activaciones:','wordpress-seo-premium-gpl')); ?></strong> <?php echo esc_html(__('Ilimitadas','wordpress-seo-premium-gpl')); ?></p>
                     <?php endif; ?>
                     
                     <hr>
@@ -160,17 +160,17 @@ function yoast_seo_gpl_license_page() {
                 btn.innerHTML = originalText;
 
                 if (data.success) {
-                    showMessage('✅ API Key activada correctamente. Recargando...', 'success');
+                    showMessage('<?php echo esc_js(__('✅ API Key activada correctamente. Recargando...','wordpress-seo-premium-gpl')); ?>', 'success');
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    const errorMsg = data.data && data.data.message ? data.data.message : 'API Key no válida.';
-                    showMessage(`❌ ${errorMsg}`, 'error');
+                    const errorMsg = data.data && data.data.message ? data.data.message : '<?php echo esc_js(__('API Key no válida.','wordpress-seo-premium-gpl')); ?>';
+                    showMessage(`<?php echo esc_js(__('❌','wordpress-seo-premium-gpl')); ?> ${errorMsg}`, 'error');
                 }
             })
             .catch(err => {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
-                showMessage('❌ Error de conexión.', 'error');
+                showMessage('<?php echo esc_js(__('❌ Error de conexión.','wordpress-seo-premium-gpl')); ?>', 'error');
             });
         }
         
@@ -195,17 +195,17 @@ function yoast_seo_gpl_license_page() {
                 deact.innerHTML = originalText;
                 
                 if (data.success) {
-                    showMessage('✅ API Key desactivada. Recargando...', 'success');
+                    showMessage('<?php echo esc_js(__('✅ API Key desactivada. Recargando...','wordpress-seo-premium-gpl')); ?>', 'success');
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    const errorMsg = data.data && data.data.message ? data.data.message : 'Error al desactivar.';
-                    showMessage(`❌ ${errorMsg}`, 'error');
+                    const errorMsg = data.data && data.data.message ? data.data.message : '<?php echo esc_js(__('Error al desactivar.','wordpress-seo-premium-gpl')); ?>';
+                    showMessage(`<?php echo esc_js(__('❌','wordpress-seo-premium-gpl')); ?> ${errorMsg}`, 'error');
                 }
             })
             .catch(err => {
                 deact.disabled = false;
                 deact.innerHTML = originalText;
-                showMessage('❌ Error de conexión.', 'error');
+                showMessage('<?php echo esc_js(__('❌ Error de conexión.','wordpress-seo-premium-gpl')); ?>', 'error');
             });
         }
         
