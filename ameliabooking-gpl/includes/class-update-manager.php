@@ -19,9 +19,9 @@ class Amelia_GPL_Update_Manager {
         
         $plugin_file = self::PLUGIN_FILE;
         $current_version = $transient->checked[$plugin_file] ?? false;
-        $api_key = get_option('amelia_gpl_api_key', '');
-        $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('amelia_gpl_expiry', '');
+        $api_key = get_option('ameliabooking_gpl_api_key', '');
+        $status = get_option('ameliabooking_gpl_key_status', 'inactive');
+        $expiry_date = get_option('plugin_updater_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);
@@ -29,7 +29,7 @@ class Amelia_GPL_Update_Manager {
             
             if ($current_timestamp >= $expiry_timestamp) {
                 $status = 'expired';
-                update_option('amelia_gpl_key_status', $status);
+                update_option('ameliabooking_gpl_key_status', $status);
             }
         }
 
@@ -37,7 +37,7 @@ class Amelia_GPL_Update_Manager {
             return $transient;
         }
 
-        $server_url = defined('AMELIA_GPL_UPDATE_SERVER') ? AMELIA_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
+        $server_url = defined('AMELIABOOKING_GPL_UPDATE_SERVER') ? AMELIABOOKING_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
         
         $args = [
             'action' => 'get_latest_version',
@@ -88,9 +88,9 @@ class Amelia_GPL_Update_Manager {
             return $result;
         }
         
-        $api_key = get_option('amelia_gpl_api_key', '');
-        $status = get_option('amelia_gpl_key_status', 'inactive');
-        $expiry_date = get_option('amelia_gpl_expiry', '');
+        $api_key = get_option('ameliabooking_gpl_api_key', '');
+        $status = get_option('ameliabooking_gpl_key_status', 'inactive');
+        $expiry_date = get_option('plugin_updater_expiry', '');
         
         if ($status === 'active' && !empty($expiry_date)) {
             $expiry_timestamp = strtotime($expiry_date);
@@ -98,7 +98,7 @@ class Amelia_GPL_Update_Manager {
             
             if ($current_timestamp >= $expiry_timestamp) {
                 $status = 'expired';
-                update_option('amelia_gpl_key_status', $status);
+                update_option('ameliabooking_gpl_key_status', $status);
             }
         }
         
@@ -106,7 +106,7 @@ class Amelia_GPL_Update_Manager {
             return $result;
         }
 
-        $server_url = defined('AMELIA_GPL_UPDATE_SERVER') ? AMELIA_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
+        $server_url = defined('AMELIABOOKING_GPL_UPDATE_SERVER') ? AMELIABOOKING_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
         
         $url = add_query_arg([
             'action' => 'plugin_information',
@@ -133,7 +133,7 @@ class Amelia_GPL_Update_Manager {
     
     public function add_api_key_to_download_url($options) {
         if (isset($options['package']) && strpos($options['package'], 'download-plugin.php') !== false && strpos($options['package'], 'slug=' . self::PLUGIN_SLUG) !== false) {
-            $api_key = get_option('amelia_gpl_api_key', '');
+            $api_key = get_option('ameliabooking_gpl_api_key', '');
             if (!empty($api_key)) {
                 $options['package'] = add_query_arg('apiKey', $api_key, $options['package']);
             }

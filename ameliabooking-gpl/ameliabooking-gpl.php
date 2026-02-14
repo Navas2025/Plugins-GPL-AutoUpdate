@@ -47,8 +47,8 @@ defined('ABSPATH') or die('No script kiddies please!');
 // 1. CONFIGURACIÓN GPL
 // ========================================
 
-if ( ! defined( 'AMELIA_GPL_UPDATE_SERVER' ) ) {
-    define( 'AMELIA_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/' ); 
+if ( ! defined( 'AMELIABOOKING_GPL_UPDATE_SERVER' ) ) {
+    define( 'AMELIABOOKING_GPL_UPDATE_SERVER', 'https://actualizarplugins.online/api/' ); 
 }
 
 // ========================================
@@ -78,75 +78,31 @@ add_action('plugins_loaded', function () {
 });
 
 // ========================================
-// 4. CARGAR INTERFAZ GPL
+// 4. CARGAR SISTEMA DE ACTUALIZACIÓN Y INTERFAZ GPL
 // ========================================
 
 if ( is_admin() ) {
     $includes_dir = __DIR__ . '/includes/';
-    if ( file_exists( $includes_dir . 'admin-license.php' ) ) require_once $includes_dir . 'admin-license.php';
-    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) require_once $includes_dir . 'ajax-license.php';
+    
+    // Sistema de actualización
+    if ( file_exists( $includes_dir . 'class-update-manager.php' ) ) {
+        require_once $includes_dir . 'class-update-manager.php';
+    }
+    
+    // Interfaz de licencia
+    if ( file_exists( $includes_dir . 'admin-license.php' ) ) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
 }
 
 // ========================================
-// 5. SISTEMA DE ACTUALIZACIÓN GPL
+// 5. INTERCEPTOR DE DESCARGA (Compatible con class-update-manager.php)
 // ========================================
 
-// Hook A: Inyectar actualización en el transient de WordPress
-add_filter('site_transient_update_plugins', function ($transient) {
-    
-    $api_key = get_option('amelia_gpl_api_key', get_option('plugin_updater_api_key', ''));
-    if (empty($api_key)) return $transient;
-
-    $plugin_slug = 'ameliabooking-gpl'; 
-    $plugin_base = plugin_basename( __FILE__ );
-    
-    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
-        return $transient;
-    }
-    $current_version = $transient->checked[$plugin_base];
-
-    $url = AMELIA_GPL_UPDATE_SERVER . 'get-plugins.php';
-    $args = [ 'apiKey' => $api_key, 'installed' => $plugin_slug ];
-    
-    $response = wp_remote_get(add_query_arg($args, $url), ['timeout' => 15, 'sslverify' => false]);
-    
-    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) return $transient;
-
-    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (is_array($remote_plugins)) {
-        foreach ($remote_plugins as $plugin) {
-            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
-                
-                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
-                    
-                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-
-                    if (!empty($package_url)) {
-                        set_transient('amelia_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
-                        error_log('✅ Amelia GPL - Hook A: New version detected: ' . $plugin['version']);
-                        error_log('✅ Amelia GPL - Hook A: URL saved in transient');
-
-                        $obj = new stdClass();
-                        $obj->slug = $plugin_slug;
-                        $obj->plugin = $plugin_base;
-                        $obj->new_version = $plugin['version'];
-                        $obj->package = $package_url;
-                        $obj->url = $plugin['details_url'] ?? '';
-                        $obj->tested = $plugin['tested'] ?? '6.7';
-                        $obj->requires = $plugin['requires'] ?? '6.0';
-                        
-                        $transient->response[$plugin_base] = $obj;
-                    }
-                }
-                break; 
-            }
-        }
-    }
-    return $transient;
-}, 100);
-
-// Hook B: Intercept BEFORE download (DEFINITIVE SOLUTION)
+// Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
     error_log('=== AMELIA GPL - UPGRADER PRE DOWNLOAD ===');
@@ -157,7 +113,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         
         error_log('⚠️ Amelia URL detected, proceeding to replace...');
         
-        $api_key = get_option('amelia_gpl_api_key', get_option('plugin_updater_api_key', ''));
+        $api_key = get_option('ameliabooking_gpl_api_key', get_option('plugin_updater_api_key', ''));
         
         if (empty($api_key)) {
             error_log('❌ API Key is empty');
@@ -168,16 +124,16 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
         error_log('✅ API Key found: ' . substr($api_key, 0, 10) . '...');
         
         // Get real URL from transient
-        $real_url = get_transient('amelia_gpl_real_url_' . md5($api_key));
+        $real_url = get_transient('ameliabooking_gpl_real_url_' . md5($api_key));
         
-        error_log('Transient key: amelia_gpl_real_url_' . md5($api_key));
+        error_log('Transient key: ameliabooking_gpl_real_url_' . md5($api_key));
         error_log('URL from Transient: ' . ($real_url ?: '❌ EMPTY'));
         
         // If no transient, query server
         if (empty($real_url)) {
             error_log('⚠️ Empty transient, querying server...');
             
-            $url = AMELIA_GPL_UPDATE_SERVER . 'get-plugins.php';
+            $url = AMELIABOOKING_GPL_UPDATE_SERVER . 'get-plugins.php';
             $query_url = add_query_arg(['apiKey' => $api_key, 'installed' => 'ameliabooking-gpl'], $url);
             
             error_log('Query URL: ' . $query_url);
@@ -208,7 +164,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
                             error_log('✅ URL obtained from server: ' . $real_url);
                             
                             // Save in transient
-                            set_transient('amelia_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
+                            set_transient('ameliabooking_gpl_real_url_' . md5($api_key), $real_url, DAY_IN_SECONDS);
                             break;
                         }
                     }

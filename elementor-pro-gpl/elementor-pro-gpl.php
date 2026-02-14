@@ -137,89 +137,31 @@ add_action('admin_head', function () {
 });
 
 // ========================================
-// 4. CARGAR INTERFAZ GPL
+// 4. CARGAR SISTEMA DE ACTUALIZACIÓN Y INTERFAZ GPL
 // ========================================
 
 if ( is_admin() ) {
     $includes_dir = __DIR__ . '/includes/';
-    if ( file_exists( $includes_dir . 'admin-license.php' ) ) require_once $includes_dir . 'admin-license.php';
-    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) require_once $includes_dir . 'ajax-license.php';
+    
+    // Sistema de actualización
+    if ( file_exists( $includes_dir . 'class-update-manager.php' ) ) {
+        require_once $includes_dir . 'class-update-manager.php';
+    }
+    
+    // Interfaz de licencia
+    if ( file_exists( $includes_dir . 'admin-license.php' ) ) {
+        require_once $includes_dir . 'admin-license.php';
+    }
+    if ( file_exists( $includes_dir . 'ajax-license.php' ) ) {
+        require_once $includes_dir . 'ajax-license.php';
+    }
 }
 
 // ========================================
-// 5. SISTEMA DE ACTUALIZACIÓN GPL
+// 5. INTERCEPTOR DE DESCARGA (Compatible con class-update-manager.php)
 // ========================================
 
-// Hook A: Inyectar actualización en el transient de WordPress
-add_filter('site_transient_update_plugins', function ($transient) {
-    
-    $api_key = get_option('elementor_pro_gpl_api_key', get_option('plugin_updater_api_key', ''));
-    if (empty($api_key)) return $transient;
-
-    $plugin_slug = 'elementor-pro-gpl'; 
-    $plugin_base = plugin_basename( __FILE__ );
-    
-    if (empty($transient->checked) || !isset($transient->checked[$plugin_base])) {
-        return $transient;
-    }
-    $current_version = $transient->checked[$plugin_base];
-
-    // Consultar al servidor
-    $url = ELEMENTOR_PRO_GPL_UPDATE_SERVER . 'get-plugins.php';
-    $args = [ 'apiKey' => $api_key, 'installed' => $plugin_slug ];
-    
-    $response = wp_remote_get(add_query_arg($args, $url), [
-        'timeout' => 15, 
-        'sslverify' => false,
-        'headers' => [
-            'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url()
-        ]
-    ]);
-    
-    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-        $error_msg = is_wp_error($response) ? $response->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($response);
-        error_log('Elementor Pro GPL - Hook A: Error al consultar servidor - ' . $error_msg);
-        return $transient;
-    }
-
-    $remote_plugins = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (is_array($remote_plugins)) {
-        foreach ($remote_plugins as $plugin) {
-            if (isset($plugin['slug']) && $plugin['slug'] === $plugin_slug) {
-                
-                if (isset($plugin['version']) && version_compare($current_version, $plugin['version'], '<')) {
-                    
-                    $package_url = $plugin['download_url'] ?? ($plugin['package'] ?? '');
-
-                    if (!empty($package_url)) {
-                        // Guardar URL en transient PERSISTENTE (24 horas)
-                        set_transient('elpro_gpl_real_url_' . md5($api_key), $package_url, DAY_IN_SECONDS);
-                        
-                        error_log('✅ Elementor Pro GPL - Hook A: Nueva versión detectada: ' . $plugin['version']);
-                        error_log('✅ Elementor Pro GPL - Hook A: URL guardada en transient');
-
-                        $obj = new stdClass();
-                        $obj->slug = $plugin_slug;
-                        $obj->plugin = $plugin_base;
-                        $obj->new_version = $plugin['version'];
-                        $obj->package = $package_url;
-                        $obj->url = $plugin['details_url'] ?? 'https://elementor.com';
-                        $obj->tested = $plugin['tested'] ?? '6.7';
-                        $obj->requires = $plugin['requires'] ?? '6.0';
-                        $obj->requires_php = $plugin['requires_php'] ?? '7.4';
-                        
-                        $transient->response[$plugin_base] = $obj;
-                    }
-                }
-                break; 
-            }
-        }
-    }
-    return $transient;
-}, 100);
-
-// Hook B: Interceptar ANTES de la descarga (SOLUCIÓN DEFINITIVA)
+// Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
     error_log('=== ELEMENTOR PRO GPL - UPGRADER PRE DOWNLOAD ===');
