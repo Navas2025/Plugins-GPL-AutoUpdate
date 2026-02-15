@@ -6,6 +6,9 @@ class Yoast_SEO_GPL_Update_Manager {
     const PLUGIN_SLUG = 'wordpress-seo-premium-gpl';
     const PLUGIN_FILE = 'wordpress-seo-premium-gpl/wordpress-seo-premium-gpl.php';
     
+    private $last_check_time = 0;
+    private $check_interval = 3600; // 1 hora en segundos
+    
     public function __construct() {
         error_log('✅ [Yoast_SEO_GPL_Update_Manager] inicializado');
         add_filter('site_transient_update_plugins', [$this, 'check_for_plugin_update']);
@@ -14,6 +17,14 @@ class Yoast_SEO_GPL_Update_Manager {
     }
 
     public function check_for_plugin_update($transient) {
+        
+        // Evitar comprobaciones múltiples en la misma carga
+        $current_time = time();
+        if (($current_time - $this->last_check_time) < 5) {
+            // Si han pasado menos de 5 segundos desde la última comprobación, saltar
+            return $transient;
+        }
+        
         error_log('=== [YOAST SEO] GPL - CHECK FOR UPDATE ===');
 
         if (empty($transient->checked)) {
@@ -49,6 +60,21 @@ class Yoast_SEO_GPL_Update_Manager {
             error_log('=== FIN CHECK FOR UPDATE ===');
             return $transient;
         }
+        
+        // Comprobar cache de última comprobación
+        $cache_key = 'yoast_seo_gpl_last_check_' . md5($api_key);
+        $last_check = get_transient($cache_key);
+        
+        if ($last_check !== false && ($current_time - $last_check) < $this->check_interval) {
+            $time_remaining = $this->check_interval - ($current_time - $last_check);
+            error_log('ℹ️ Comprobación en cache. Próxima en ' . round($time_remaining / 60) . ' minutos');
+            error_log('=== FIN CHECK FOR UPDATE ===');
+            return $transient;
+        }
+        
+        // Actualizar tiempo de última comprobación
+        $this->last_check_time = $current_time;
+        set_transient($cache_key, $current_time, $this->check_interval);
 
         $server_url = defined('YOAST_SEO_GPL_UPDATE_SERVER') ? YOAST_SEO_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
         

@@ -337,58 +337,67 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 }, 10, 3);
 
 // ========================================
-// PARTE 7: MANTENER PLUGIN ACTIVO DESPUÉS DE ACTUALIZAR
+// PARTE 7: RENOMBRAR CARPETA SI ES INCORRECTA
 // ========================================
 
 /**
- * Evitar que el plugin se desactive después de actualizar
+ * Corregir nombre de carpeta después de extraer el ZIP
+ * Esto soluciona el problema cuando el ZIP tiene carpeta "wp-rocket" en lugar de "wp-rocket-gpl"
  */
-add_filter('upgrader_post_install', function($result, $hook_extra, $install_result) {
+add_filter('upgrader_source_selection', function($source, $remote_source, $upgrader, $hook_extra) {
     global $wp_filesystem;
+    
+    error_log('=== WP ROCKET GPL - UPGRADER SOURCE SELECTION ===');
+    error_log('Source: ' . $source);
+    error_log('Remote source: ' . $remote_source);
     
     // Solo aplicar para WP Rocket GPL
     if (!isset($hook_extra['plugin']) || $hook_extra['plugin'] !== 'wp-rocket-gpl/wp-rocket-gpl.php') {
-        return $result;
+        error_log('ℹ️ No es WP Rocket GPL, saltando...');
+        error_log('=== FIN UPGRADER SOURCE SELECTION ===');
+        return $source;
     }
     
-    error_log('=== WP ROCKET GPL - POST INSTALL ===');
-    error_log('Source: ' . $install_result['source']);
-    error_log('Destination: ' . $install_result['destination']);
+    error_log('✅ Plugin detectado: WP Rocket GPL');
     
-    // Si la carpeta de destino NO es wp-rocket-gpl, renombrarla
-    $plugin_folder = basename($install_result['destination']);
+    // Obtener el nombre de la carpeta extraída
+    $dirname = basename($source);
+    error_log('Nombre de carpeta extraída: ' . $dirname);
     
-    if ($plugin_folder !== 'wp-rocket-gpl') {
-        error_log('⚠️ Carpeta incorrecta detectada: ' . $plugin_folder);
+    // Si la carpeta NO es "wp-rocket-gpl", renombrarla
+    if ($dirname !== 'wp-rocket-gpl') {
+        error_log('⚠️ Carpeta incorrecta detectada: ' . $dirname);
         
-        $parent_dir = dirname($install_result['destination']);
-        $correct_destination = $parent_dir . '/wp-rocket-gpl/';
+        $new_source = trailingslashit($remote_source) . 'wp-rocket-gpl/';
+        error_log('Nueva ruta: ' . $new_source);
         
-        error_log('Renombrando: ' . $install_result['destination'] . ' → ' . $correct_destination);
-        
-        // Si ya existe wp-rocket-gpl, eliminarla primero
-        if ($wp_filesystem->exists($correct_destination)) {
-            error_log('⚠️ Carpeta wp-rocket-gpl existente será reemplazada');
-            $wp_filesystem->delete($correct_destination, true);
+        // Si ya existe wp-rocket-gpl en tmp, eliminarla
+        if ($wp_filesystem->exists($new_source)) {
+            error_log('⚠️ Ya existe carpeta wp-rocket-gpl en tmp, eliminando...');
+            $wp_filesystem->delete($new_source, true);
         }
         
         // Renombrar carpeta
-        $moved = $wp_filesystem->move($install_result['destination'], $correct_destination, true);
+        error_log('🔄 Renombrando: ' . $source . ' → ' . $new_source);
+        $moved = $wp_filesystem->move($source, $new_source);
         
         if ($moved) {
-            $install_result['destination'] = $correct_destination;
-            $install_result['destination_name'] = 'wp-rocket-gpl';
-            error_log('✅ Carpeta renombrada correctamente a wp-rocket-gpl');
+            error_log('✅✅✅ Carpeta renombrada correctamente a wp-rocket-gpl');
+            error_log('=== FIN UPGRADER SOURCE SELECTION ===');
+            return $new_source;
         } else {
             error_log('❌ Error al renombrar carpeta');
+            // Si falla el renombrado, devolver el source original para que no se rompa la actualización
+            error_log('=== FIN UPGRADER SOURCE SELECTION ===');
+            return $source;
         }
     } else {
         error_log('✅ Carpeta correcta: wp-rocket-gpl');
     }
     
-    error_log('=== FIN POST INSTALL ===');
-    return $install_result;
-}, 10, 3);
+    error_log('=== FIN UPGRADER SOURCE SELECTION ===');
+    return $source;
+}, 10, 4);
 
 /**
  * Mantener plugin activo después de actualizar
@@ -396,7 +405,7 @@ add_filter('upgrader_post_install', function($result, $hook_extra, $install_resu
 add_filter('update_plugin_complete_actions', function($update_actions, $plugin) {
     // Solo para WP Rocket GPL
     if ($plugin === 'wp-rocket-gpl/wp-rocket-gpl.php') {
-        error_log('✅ WP Rocket GPL actualizado - manteniendo activo');
+        error_log('✅ WP Rocket GPL actualizado - verificando estado...');
         
         // Verificar si el plugin está activo
         if (!function_exists('is_plugin_active')) {
@@ -405,17 +414,51 @@ add_filter('update_plugin_complete_actions', function($update_actions, $plugin) 
         
         // Si no está activo, activarlo
         if (!is_plugin_active($plugin)) {
-            error_log('⚠️ Plugin desactivado - reactivando...');
-            $activation_result = activate_plugin($plugin);
-            if (is_wp_error($activation_result)) {
-                error_log('❌ Error al reactivar plugin: ' . $activation_result->get_error_message());
+            error_log('⚠️ Plugin desactivado después de actualizar - reactivando...');
+            $result = activate_plugin($plugin);
+            if (is_wp_error($result)) {
+                error_log('❌ Error al reactivar: ' . $result->get_error_message());
             } else {
-                error_log('✅ Plugin reactivado');
+                error_log('✅ Plugin reactivado correctamente');
             }
+        } else {
+            error_log('✅ Plugin ya está activo');
         }
     }
     
     return $update_actions;
+}, 10, 2);
+
+/**
+ * Limpiar carpeta incorrecta si existe después de actualizar
+ */
+add_action('upgrader_process_complete', function($upgrader, $hook_extra) {
+    global $wp_filesystem;
+    
+    // Solo aplicar para WP Rocket GPL
+    if (isset($hook_extra['plugin']) && $hook_extra['plugin'] === 'wp-rocket-gpl/wp-rocket-gpl.php') {
+        error_log('=== WP ROCKET GPL - POST UPDATE CLEANUP ===');
+        
+        $plugins_dir = WP_PLUGIN_DIR . '/';
+        $wrong_folder = $plugins_dir . 'wp-rocket/';
+        $correct_folder = $plugins_dir . 'wp-rocket-gpl/';
+        
+        // Si existe la carpeta incorrecta "wp-rocket", eliminarla
+        if ($wp_filesystem->exists($wrong_folder) && $wp_filesystem->exists($correct_folder)) {
+            error_log('⚠️ Detectada carpeta duplicada: wp-rocket/');
+            error_log('🗑️ Eliminando carpeta incorrecta...');
+            
+            $deleted = $wp_filesystem->delete($wrong_folder, true);
+            
+            if ($deleted) {
+                error_log('✅ Carpeta wp-rocket/ eliminada correctamente');
+            } else {
+                error_log('❌ No se pudo eliminar carpeta wp-rocket/');
+            }
+        }
+        
+        error_log('=== FIN POST UPDATE CLEANUP ===');
+    }
 }, 10, 2);
 
 // ========================================
