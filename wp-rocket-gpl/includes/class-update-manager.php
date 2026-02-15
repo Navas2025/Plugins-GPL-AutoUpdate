@@ -10,6 +10,9 @@ class WP_Rocket_GPL_Update_Manager {
     const PLUGIN_SLUG = 'wp-rocket-gpl';
     const PLUGIN_FILE = 'wp-rocket-gpl/wp-rocket-gpl.php';
     
+    private $last_check_time = 0;
+    private $check_interval = 3600; // 1 hora en segundos
+    
     public function __construct() {
         error_log('✅ [WP_Rocket_GPL_Update_Manager] inicializado');
         add_filter('site_transient_update_plugins', [$this, 'check_for_plugin_update']);
@@ -18,6 +21,14 @@ class WP_Rocket_GPL_Update_Manager {
     }
 
     public function check_for_plugin_update($transient) {
+        
+        // Evitar comprobaciones múltiples en la misma carga
+        $current_time = time();
+        if (($current_time - $this->last_check_time) < 5) {
+            // Si han pasado menos de 5 segundos desde la última comprobación, saltar
+            return $transient;
+        }
+        
         error_log('=== [WP ROCKET] GPL - CHECK FOR UPDATE ===');
 
         if (empty($transient->checked)) {
@@ -53,6 +64,21 @@ class WP_Rocket_GPL_Update_Manager {
             error_log('=== FIN CHECK FOR UPDATE ===');
             return $transient;
         }
+        
+        // Comprobar cache de última comprobación
+        $cache_key = 'wp_rocket_gpl_last_check_' . md5($api_key);
+        $last_check = get_transient($cache_key);
+        
+        if ($last_check !== false && ($current_time - $last_check) < $this->check_interval) {
+            $time_remaining = $this->check_interval - ($current_time - $last_check);
+            error_log('ℹ️ Comprobación en cache. Próxima en ' . round($time_remaining / 60) . ' minutos');
+            error_log('=== FIN CHECK FOR UPDATE ===');
+            return $transient;
+        }
+        
+        // Actualizar tiempo de última comprobación
+        $this->last_check_time = $current_time;
+        set_transient($cache_key, $current_time, $this->check_interval);
 
         $server_url = defined('WP_ROCKET_GPL_UPDATE_SERVER') ? WP_ROCKET_GPL_UPDATE_SERVER : 'https://actualizarplugins.online/api/';
         
