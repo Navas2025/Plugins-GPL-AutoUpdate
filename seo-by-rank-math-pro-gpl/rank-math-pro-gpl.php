@@ -5,11 +5,11 @@
  * @package      RANK_MATH_PRO_GPL
  * @copyright    Copyright (C) 2018-2025, GPL System
  * @link         https://actualizarplugins.online
- * @since        3.0.107
+ * @since        3.0.108
  *
  * @wordpress-plugin
  * Plugin Name:       Rank Math SEO PRO GPL
- * Version:           3.0.107
+ * Version:           3.0.108
  * Plugin URI:        https://actualizarplugins.online
  * Description:       Rank Math SEO PRO con sistema GPL de actualizaciones por API Key. Compatible con versión gratuita. (Versión Final - Interceptor de URL).
  * Author:            Sistema GPL (Modificado con Sistema GPL)
@@ -111,7 +111,7 @@ if (is_admin()) {
 // Intercept BEFORE download (DEFINITIVE SOLUTION)
 add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
     
-    error_log('=== RANK MATH PRO GPL v3.0.107 - UPGRADER PRE DOWNLOAD ===');
+    error_log('=== RANK MATH PRO GPL v3.0.108 - UPGRADER PRE DOWNLOAD ===');
     error_log('Package URL received: ' . $package);
     error_log('Reply inicial: ' . print_r($reply, true));
     
