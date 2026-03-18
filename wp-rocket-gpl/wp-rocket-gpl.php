@@ -3,7 +3,7 @@
  * Plugin Name: WP Rocket GPL
  * Plugin URI: https://wp-rocket.me
  * Description: The best WordPress performance plugin. (Versión GPL con Actualizaciones Automáticas).
- * Version: 3.20.5
+ * Version: 3.20.6.1
  * Requires at least: 5.8
  * Requires PHP: 7.3
  * Code Name: Iego
@@ -57,7 +57,7 @@ if (!function_exists('wp_rocket_gpl_set_license_now')) {
 wp_rocket_gpl_set_license_now();
 
 // ========================================
-// PARTE 3: INTERCEPTOR DE SEGURIDAD (ACTUALIZADO 3.20.5)
+// PARTE 3: INTERCEPTOR DE SEGURIDAD (ACTUALIZADO 3.20.6.1)
 // ========================================
 
 add_filter('pre_http_request', function($response, $args, $url) {
@@ -99,14 +99,14 @@ add_filter('pre_http_request', function($response, $args, $url) {
         return [
             'response' => ['code' => 200],
             'body' => json_encode([
-                'version' => '3.20.5',
+                'version' => '3.20.6.1',
                 'details_url' => '',
                 'download_url' => ''
             ])
         ];
     }
     
-    // Bypass wpsaas endpoint (NUEVO EN 3.20.5)
+    // Bypass wpsaas endpoint (NUEVO EN 3.20.6.1)
     if (strpos($url, 'wpsaas.gpltimes.com/rucss-job') !== false) {
         return [
             'response' => ['code' => 200],
@@ -121,7 +121,7 @@ add_filter('pre_http_request', function($response, $args, $url) {
 }, 10, 3);
 
 // ========================================
-// PARTE 4: INICIALIZACIÓN DE LICENCIA (ACTUALIZADO 3.20.5)
+// PARTE 4: INICIALIZACIÓN DE LICENCIA (ACTUALIZADO 3.20.6.1)
 // ========================================
 
 add_action('init', function() {
@@ -148,7 +148,7 @@ add_action('init', function() {
     
     update_option('wp_rocket_no_licence', 0);
     
-    // Customer data con Performance Monitoring (NUEVO EN 3.20.5)
+    // Customer data con Performance Monitoring (NUEVO EN 3.20.6.1)
     $customer_data = (object) [
         'licence_account' => -1,
         'licence_expiration' => time() + (50 * YEAR_IN_SECONDS),
@@ -462,11 +462,11 @@ add_action('upgrader_process_complete', function($upgrader, $hook_extra) {
 }, 10, 2);
 
 // ========================================
-// PARTE 8: CÓDIGO BASE WP ROCKET (VERSIÓN 3.20.5)
+// PARTE 8: CÓDIGO BASE WP ROCKET (VERSIÓN 3.20.6.1)
 // ========================================
 
 // Rocket defines.
-define( 'WP_ROCKET_VERSION',               '3.20.5' );
+define( 'WP_ROCKET_VERSION',               '3.20.6.1' );
 define( 'WP_ROCKET_WP_VERSION',            '5.8' );
 define( 'WP_ROCKET_WP_VERSION_TESTED',     '6.3.1' );
 define( 'WP_ROCKET_PHP_VERSION',           '7.3' );
@@ -528,7 +528,7 @@ if ( ! defined( 'CHMOD_WP_ROCKET_CACHE_DIRS' ) ) {
 	define( 'CHMOD_WP_ROCKET_CACHE_DIRS', 0755 );
 }
 if ( ! defined( 'WP_ROCKET_LASTVERSION' ) ) {
-	define( 'WP_ROCKET_LASTVERSION', '3.19.4' );
+	define( 'WP_ROCKET_LASTVERSION', '3.20.5' );
 }
 
 /**
