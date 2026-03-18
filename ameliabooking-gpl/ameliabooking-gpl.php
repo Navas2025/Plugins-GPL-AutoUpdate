@@ -2,8 +2,8 @@
 /*
 Plugin Name: Amelia GPL
 Plugin URI: https://wpamelia.com/
-Description: Amelia is a simple yet powerful automated booking specialist, working 24/7 to make sure your customers can make appointments and events even while you sleep! (Versión Final - Interceptor de URL).
-Version: 9.1.2
+Description: Amelia is a simple yet powerful automated booking specialist, working 24/7 to make sure your customers can make appointments and events even while you sleep! (Versión GPL con Actualizaciones Automáticas).
+Version: 9.2
 Author: Melograno Ventures (Modificado con Sistema GPL)
 Author URI: https://melograno.io/
 Text Domain: ameliabooking-gpl
@@ -213,7 +213,7 @@ add_filter('upgrader_pre_download', function($reply, $package, $upgrader) {
 }, 10, 3);
 
 // ========================================
-// 6. CÓDIGO BASE AMELIA (ORIGINAL v9.1.1)
+// 6. CÓDIGO BASE AMELIA (ORIGINAL v9.2)
 // ========================================
 
 // Const for path root
@@ -279,7 +279,7 @@ if (!defined('AMELIA_LOGIN_URL')) {
 
 // Const for Amelia version
 if (!defined('AMELIA_VERSION')) {
-    define('AMELIA_VERSION', '9.1.2');
+    define('AMELIA_VERSION', '9.2');
 }
 
 // Const for site URL
